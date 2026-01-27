@@ -23,6 +23,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   min-height: 100vh;
+  margin: 0;
 }
 
 * {

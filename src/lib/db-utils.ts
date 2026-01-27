@@ -31,6 +31,8 @@ export const normalizeUserRow = (row: RowRecord) => {
     password_hash: getRowString(row, "password_hash") ?? "",
     telegram_user_id: getRowString(row, "telegram_user_id") ?? "",
     created_at: getRowString(row, "created_at"),
+    is_admin: Number(getRowString(row, "is_admin") ?? 0),
+    total_score: Number(getRowString(row, "total_score") ?? 0),
   };
 };
 

@@ -36,7 +36,9 @@ export const ensureSchema = async () => {
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         telegram_user_id TEXT NOT NULL UNIQUE,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        total_score INTEGER NOT NULL DEFAULT 0
       )`,
       args: [],
     },
@@ -74,6 +76,50 @@ export const ensureSchema = async () => {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS board_words (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        start_x INTEGER NOT NULL,
+        start_y INTEGER NOT NULL,
+        direction TEXT NOT NULL,
+        placed_by INTEGER NOT NULL,
+        placed_at TEXT NOT NULL,
+        score INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (placed_by) REFERENCES users(id)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS board_tiles (
+        x INTEGER NOT NULL,
+        y INTEGER NOT NULL,
+        letter TEXT NOT NULL,
+        word_id INTEGER NOT NULL,
+        placed_by INTEGER NOT NULL,
+        placed_at TEXT NOT NULL,
+        PRIMARY KEY (x, y),
+        FOREIGN KEY (word_id) REFERENCES board_words(id),
+        FOREIGN KEY (placed_by) REFERENCES users(id)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS board_archives (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        archived_at TEXT NOT NULL
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS board_archive_scores (
+        archive_id INTEGER NOT NULL,
+        username TEXT NOT NULL,
+        total_score INTEGER NOT NULL,
+        FOREIGN KEY (archive_id) REFERENCES board_archives(id)
+      )`,
+      args: [],
+    },
   ]);
 
   const tokenColumns = await database.execute({
@@ -97,4 +143,68 @@ export const ensureSchema = async () => {
       args: [],
     });
   }
+
+  const userColumns = await database.execute({
+    sql: "PRAGMA table_info(users)",
+    args: [],
+  });
+  const userColumnNames = new Set(
+    userColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+
+  if (!userColumnNames.has("is_admin")) {
+    await database.execute({
+      sql: "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
+      args: [],
+    });
+  }
+
+  if (!userColumnNames.has("total_score")) {
+    await database.execute({
+      sql: "ALTER TABLE users ADD COLUMN total_score INTEGER NOT NULL DEFAULT 0",
+      args: [],
+    });
+  }
+
+  const boardWordColumns = await database.execute({
+    sql: "PRAGMA table_info(board_words)",
+    args: [],
+  });
+  const boardWordNames = new Set(
+    boardWordColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+
+  if (!boardWordNames.has("score")) {
+    await database.execute({
+      sql: "ALTER TABLE board_words ADD COLUMN score INTEGER NOT NULL DEFAULT 0",
+      args: [],
+    });
+  }
+};
+
+export const ensureSystemUser = async () => {
+  const database = db();
+  const systemResult = await database.execute({
+    sql: "SELECT id FROM users WHERE telegram_user_id = ?",
+    args: ["system"],
+  });
+  const existingId = String(
+    (systemResult.rows[0] as Record<string, unknown> | undefined)?.id ?? "",
+  );
+  if (existingId) {
+    return existingId;
+  }
+
+  const createdAt = new Date().toISOString();
+  await database.execute({
+    sql: "INSERT INTO users (username, password_hash, telegram_user_id, created_at) VALUES (?, ?, ?, ?)",
+    args: ["board_seed", "system", "system", createdAt],
+  });
+  const createdResult = await database.execute({
+    sql: "SELECT id FROM users WHERE telegram_user_id = ?",
+    args: ["system"],
+  });
+  return String(
+    (createdResult.rows[0] as Record<string, unknown> | undefined)?.id ?? "",
+  );
 };

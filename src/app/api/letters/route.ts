@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         id: user.id,
         username: user.username,
         telegram_user_id: user.telegram_user_id,
+        total_score: user.total_score ?? 0,
       },
       letters,
     });
