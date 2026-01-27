@@ -408,6 +408,31 @@ export default function BoardScene({
         </div>
       </div>
 
+      <div className="pointer-events-none absolute left-4 top-20 flex flex-col items-start gap-3 sm:left-6 sm:top-6">
+        <a
+          href="/"
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 bg-white/80 text-[#6b4b3d] shadow-lg shadow-black/5"
+          aria-label="Home"
+          title="Home"
+        >
+          <span className="sr-only">Home</span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 10.5L12 3l9 7.5" />
+            <path d="M5 10.5V21h14V10.5" />
+            <path d="M9 21v-6h6v6" />
+          </svg>
+        </a>
+      </div>
+
       <div className="pointer-events-none absolute right-4 top-20 flex flex-col items-end gap-3 sm:right-6 sm:top-6">
         <button
           type="button"
@@ -494,7 +519,7 @@ export default function BoardScene({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-6 left-1/2 w-[min(720px,92vw)] -translate-x-1/2">
+      <div className="pointer-events-none absolute bottom-6 left-1/2 w-[min(720px,92vw)] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]">
         <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/90 p-4 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
             <span>Inventory Keyboard</span>
