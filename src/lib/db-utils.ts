@@ -19,3 +19,17 @@ export const normalizeTokenRow = (row: RowRecord) => {
     used_at: getRowString(row, "used_at"),
   };
 };
+
+export const normalizeUserRow = (row: RowRecord) => {
+  if (!row) {
+    return undefined;
+  }
+
+  return {
+    id: getRowString(row, "id"),
+    username: getRowString(row, "username") ?? "",
+    password_hash: getRowString(row, "password_hash") ?? "",
+    telegram_user_id: getRowString(row, "telegram_user_id") ?? "",
+    created_at: getRowString(row, "created_at"),
+  };
+};

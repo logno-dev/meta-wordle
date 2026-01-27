@@ -1,15 +1,6 @@
-import ConnectForm from "./ConnectForm";
+import LoginForm from "./LoginForm";
 
-type ConnectPageProps = {
-  searchParams?: Promise<{ token?: string | string[] }>;
-};
-
-export default async function ConnectPage({ searchParams }: ConnectPageProps) {
-  const resolvedParams = searchParams ? await searchParams : undefined;
-  const token = Array.isArray(resolvedParams?.token)
-    ? resolvedParams?.token[0]
-    : resolvedParams?.token;
-
+export default function LoginPage() {
   return (
     <div className="relative min-h-screen px-6 py-14 sm:px-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -23,7 +14,7 @@ export default async function ConnectPage({ searchParams }: ConnectPageProps) {
         >
           Wordle Board
         </a>
-        <ConnectForm token={token} />
+        <LoginForm />
       </main>
     </div>
   );

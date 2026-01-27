@@ -111,9 +111,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Unable to connect right now." },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error ? error.message : "Unable to connect right now.";
+    const safeMessage =
+      process.env.NODE_ENV === "production"
+        ? "Unable to connect right now."
+        : message;
+    return NextResponse.json({ error: safeMessage }, { status: 500 });
   }
 }
