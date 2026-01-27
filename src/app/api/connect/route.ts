@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeTokenRow } from "@/lib/db-utils";
+import { createSession } from "@/lib/auth";
 
 type ConnectPayload = {
   token?: string;
@@ -109,7 +110,30 @@ export async function POST(request: Request) {
       },
     ]);
 
-    return NextResponse.json({ success: true });
+    const userLookup = await database.execute({
+      sql: "SELECT id FROM users WHERE username = ?",
+      args: [username],
+    });
+    const userId = String(
+      (userLookup.rows[0] as Record<string, unknown> | undefined)?.id ?? "",
+    );
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unable to create session." },
+        { status: 500 },
+      );
+    }
+
+    const session = await createSession(database, userId);
+    const response = NextResponse.json({ success: true });
+    response.cookies.set("session_token", session.token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires: session.expiresAt,
+    });
+    return response;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to connect right now.";

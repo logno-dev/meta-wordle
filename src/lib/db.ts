@@ -64,6 +64,16 @@ export const ensureSchema = async () => {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS user_sessions (
+        token TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    },
   ]);
 
   const tokenColumns = await database.execute({

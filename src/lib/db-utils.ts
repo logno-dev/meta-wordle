@@ -33,3 +33,15 @@ export const normalizeUserRow = (row: RowRecord) => {
     created_at: getRowString(row, "created_at"),
   };
 };
+
+export const normalizeLetterRow = (row: RowRecord) => {
+  if (!row) {
+    return undefined;
+  }
+
+  return {
+    letter: getRowString(row, "letter") ?? "",
+    quantity: Number(getRowString(row, "quantity") ?? 0),
+    updated_at: getRowString(row, "updated_at"),
+  };
+};

@@ -1,4 +1,60 @@
-export default function BoardPage() {
+type BoardPageProps = {
+  searchParams?: Promise<{
+    username?: string | string[];
+    telegram_user_id?: string | string[];
+  }>;
+};
+
+const normalizeParam = (value?: string | string[]) =>
+  Array.isArray(value) ? value[0] : value;
+
+import { cookies } from "next/headers";
+import { db, ensureSchema } from "@/lib/db";
+import { normalizeLetterRow, normalizeUserRow } from "@/lib/db-utils";
+
+export default async function BoardPage({ searchParams }: BoardPageProps) {
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const username = normalizeParam(resolvedParams?.username);
+  const telegramUserId = normalizeParam(resolvedParams?.telegram_user_id);
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get("session_token")?.value;
+
+  await ensureSchema();
+  const database = db();
+
+  let user = null as ReturnType<typeof normalizeUserRow> | null;
+  let letters: ReturnType<typeof normalizeLetterRow>[] = [];
+
+  if (username || telegramUserId) {
+    const userResult = await database.execute({
+      sql: telegramUserId
+        ? "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE telegram_user_id = ?"
+        : "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
+      args: [telegramUserId ?? username],
+    });
+    user = normalizeUserRow(
+      userResult.rows[0] as Record<string, unknown> | undefined,
+    );
+  } else if (sessionToken) {
+    const sessionResult = await database.execute({
+      sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
+      args: [sessionToken, new Date().toISOString()],
+    });
+    user = normalizeUserRow(
+      sessionResult.rows[0] as Record<string, unknown> | undefined,
+    );
+  }
+
+  if (user?.id) {
+    const lettersResult = await database.execute({
+      sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE user_id = ? ORDER BY letter ASC",
+      args: [user.id],
+    });
+    letters = lettersResult.rows
+      .map((row) => normalizeLetterRow(row as Record<string, unknown>))
+      .filter(Boolean) as ReturnType<typeof normalizeLetterRow>[];
+  }
+
   return (
     <div className="relative min-h-screen px-6 py-14 sm:px-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -24,19 +80,43 @@ export default function BoardPage() {
 
         <section className="grid gap-6 md:grid-cols-2">
           <div className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-xl shadow-black/5">
-            <h2 className="font-display text-2xl text-[#241c15]">Your letters</h2>
-            <p className="mt-2 text-sm text-[#5a4d43]">
-              Inventory will show here once Wordle submissions arrive.
-            </p>
-            <div className="mt-4 grid grid-cols-5 gap-2">
-              {Array.from({ length: 10 }).map((_, index) => (
-                <div
-                  key={`tile-${index}`}
-                  className="flex h-12 items-center justify-center rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] text-xs font-semibold text-[#6b4b3d]"
-                >
-                  +
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-2xl text-[#241c15]">Your letters</h2>
+                <p className="mt-2 text-sm text-[#5a4d43]">
+                  Inventory updates after each Wordle submission.
+                </p>
+              </div>
+              <div className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-semibold text-[#6b4b3d]">
+                Live
+              </div>
+            </div>
+            <div className="mt-4">
+              {!user ? (
+                <div className="rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] p-3 text-xs text-[#5a4d43]">
+                  Log in to see your letters on the board.
                 </div>
-              ))}
+              ) : letters.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] p-3 text-xs text-[#5a4d43]">
+                  No letters yet. Submit a Wordle to earn your first tile.
+                </div>
+              ) : (
+                <div className="grid grid-cols-5 gap-2">
+                  {letters.map((entry) => (
+                    <div
+                      key={entry.letter}
+                      className="flex h-12 flex-col items-center justify-center rounded-2xl border border-black/10 bg-white text-xs font-semibold text-[#6b4b3d]"
+                    >
+                      <span className="text-base uppercase text-[#241c15]">
+                        {entry.letter}
+                      </span>
+                      <span className="text-[10px] text-[#6b4b3d]">
+                        x{entry.quantity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="rounded-3xl border border-black/10 bg-[#1f1b16] p-6 text-white shadow-xl shadow-black/10">

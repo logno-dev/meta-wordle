@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeUserRow } from "@/lib/db-utils";
+import { createSession } from "@/lib/auth";
 
 type LoginPayload = {
   username?: string;
@@ -48,7 +49,16 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true });
+    const session = await createSession(database, String(user.id));
+    const response = NextResponse.json({ success: true });
+    response.cookies.set("session_token", session.token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires: session.expiresAt,
+    });
+    return response;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to log in right now.";
