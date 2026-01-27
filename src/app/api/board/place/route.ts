@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { isValidWord } from "@/lib/dictionary";
-import { SCRABBLE_SCORES } from "@/lib/letters";
+import { SCRABBLE_SCORES, pickRewardLetters } from "@/lib/letters";
 
 type PlacePayload = {
   word?: string;
@@ -227,6 +227,8 @@ export async function POST(request: Request) {
 
     const placedAt = new Date().toISOString();
     const score = calculateScore(word);
+    const rewardCount = score >= 18 ? 2 : score >= 10 ? 1 : 0;
+    const rewardLetters = rewardCount > 0 ? pickRewardLetters(rewardCount) : [];
     await database.execute({
       sql: "INSERT INTO board_words (word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (?, ?, ?, ?, ?, ?, ?)",
       args: [word, startX, startY, direction, userId, placedAt, score],
@@ -258,6 +260,13 @@ export async function POST(request: Request) {
       });
     }
 
+    for (const letter of rewardLetters) {
+      statements.push({
+        sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, 1, ?) ON CONFLICT(user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
+        args: [userId, letter, placedAt],
+      });
+    }
+
     statements.push({
       sql: "UPDATE users SET total_score = total_score + ? WHERE id = ?",
       args: [score, userId],
@@ -270,6 +279,7 @@ export async function POST(request: Request) {
       word_id: wordId,
       placed_tiles: newTiles.length,
       score,
+      reward_letters: rewardLetters,
     });
   } catch (error) {
     const message =

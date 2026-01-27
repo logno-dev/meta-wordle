@@ -120,6 +120,28 @@ export const ensureSchema = async () => {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS gifts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        letters_json TEXT NOT NULL,
+        available_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS gift_claims (
+        gift_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        claimed_at TEXT NOT NULL,
+        PRIMARY KEY (gift_id, user_id),
+        FOREIGN KEY (gift_id) REFERENCES gifts(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    },
   ]);
 
   const tokenColumns = await database.execute({

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeTokenRow } from "@/lib/db-utils";
+import { BASE_INVENTORY } from "@/lib/letters";
 import { createSession } from "@/lib/auth";
 
 type ConnectPayload = {
@@ -122,6 +123,14 @@ export async function POST(request: Request) {
         { error: "Unable to create session." },
         { status: 500 },
       );
+    }
+
+    const inventoryStatements = BASE_INVENTORY.map((entry) => ({
+      sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
+      args: [userId, entry.letter, entry.quantity, createdAt],
+    }));
+    if (inventoryStatements.length > 0) {
+      await database.batch(inventoryStatements);
     }
 
     const session = await createSession(database, userId);

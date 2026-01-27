@@ -5,7 +5,9 @@ import { useState } from "react";
 export default function AdminPanel() {
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
   const [grantStatus, setGrantStatus] = useState<string | null>(null);
+  const [grantAllStatus, setGrantAllStatus] = useState<string | null>(null);
   const [archiveStatus, setArchiveStatus] = useState<string | null>(null);
+  const [giftStatus, setGiftStatus] = useState<string | null>(null);
 
   const handleSeed = async () => {
     setSeedStatus("Seeding...");
@@ -71,6 +73,76 @@ export default function AdminPanel() {
       setArchiveStatus(
         error instanceof Error ? error.message : "Unable to archive board.",
       );
+    }
+  };
+
+  const handleGrantAll = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setGrantAllStatus("Granting...");
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const lettersRaw = String(formData.get("letters") || "").trim();
+    const payload = {
+      letters: parseLetters(lettersRaw),
+    };
+
+    try {
+      const response = await fetch("/api/admin/grant-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setGrantAllStatus(data?.error || "Unable to grant letters.");
+        return;
+      }
+      setGrantAllStatus("Letters granted to all players.");
+      form.reset();
+    } catch (error) {
+      setGrantAllStatus(
+        error instanceof Error ? error.message : "Unable to grant letters.",
+      );
+    }
+  };
+
+  const handleGift = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setGiftStatus("Creating...");
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const title = String(formData.get("title") || "").trim();
+    const lettersRaw = String(formData.get("letters") || "").trim();
+    const availableAt = String(formData.get("available_at") || "").trim();
+    const expiresAt = String(formData.get("expires_at") || "").trim();
+    const availableNow = Boolean(formData.get("available_now"));
+
+    const payload = {
+      title,
+      letters: parseLetters(lettersRaw),
+      available_at: availableNow
+        ? new Date().toISOString()
+        : availableAt
+          ? new Date(availableAt).toISOString()
+          : "",
+      expires_at: expiresAt ? new Date(expiresAt).toISOString() : "",
+    };
+
+    try {
+      const response = await fetch("/api/admin/gifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setGiftStatus(data?.error || "Unable to create gift.");
+        return;
+      }
+      setGiftStatus("Gift scheduled.");
+      form.reset();
+    } catch (error) {
+      setGiftStatus(error instanceof Error ? error.message : "Unable to create gift.");
     }
   };
 
@@ -150,6 +222,96 @@ export default function AdminPanel() {
         </form>
         {grantStatus ? (
           <p className="mt-3 text-sm text-[#5a4d43]">{grantStatus}</p>
+        ) : null}
+      </section>
+
+      <section className="rounded-3xl border border-black/10 bg-white/85 p-8 shadow-2xl shadow-black/10">
+        <h2 className="font-display text-2xl text-[#241c15]">Grant all players</h2>
+        <p className="mt-2 text-sm text-[#5a4d43]">
+          Grant the same letters to every player.
+        </p>
+        <form className="mt-4 grid gap-4" onSubmit={handleGrantAll}>
+          <label className="grid gap-2 text-sm font-semibold text-[#3c2f27]">
+            Letters
+            <input
+              name="letters"
+              required
+              placeholder="a:2, e:2, r:1"
+              className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+            />
+          </label>
+          <button
+            type="submit"
+            className="mt-2 inline-flex h-11 items-center justify-center rounded-full bg-[#d76f4b] px-6 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231]"
+          >
+            Grant to all
+          </button>
+        </form>
+        {grantAllStatus ? (
+          <p className="mt-3 text-sm text-[#5a4d43]">{grantAllStatus}</p>
+        ) : null}
+      </section>
+
+      <section className="rounded-3xl border border-black/10 bg-white/85 p-8 shadow-2xl shadow-black/10">
+        <h2 className="font-display text-2xl text-[#241c15]">Schedule gift</h2>
+        <p className="mt-2 text-sm text-[#5a4d43]">
+          Gifts appear on the board when they become available.
+        </p>
+        <form className="mt-4 grid gap-4" onSubmit={handleGift}>
+          <label className="grid gap-2 text-sm font-semibold text-[#3c2f27]">
+            Title
+            <input
+              name="title"
+              required
+              placeholder="Daily bonus"
+              className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#3c2f27]">
+            Letters
+            <input
+              name="letters"
+              required
+              placeholder="e:2, a:1, r:1"
+              className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="grid gap-2 text-sm font-semibold text-[#3c2f27]">
+              Available at
+              <input
+                name="available_at"
+                type="datetime-local"
+                className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-[#3c2f27]">
+              Expires at
+              <input
+                name="expires_at"
+                type="datetime-local"
+                required
+                className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+              />
+            </label>
+          </div>
+          <label className="flex items-center gap-3 text-sm font-semibold text-[#3c2f27]">
+            <input
+              name="available_now"
+              type="checkbox"
+              className="h-4 w-4 rounded border border-black/20"
+            />
+            Make available now
+          </label>
+          <button
+            type="submit"
+            className="mt-2 inline-flex h-11 items-center justify-center rounded-full bg-[#d76f4b] px-6 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231]"
+          >
+            Create gift
+          </button>
+        </form>
+        {giftStatus ? (
+          <p className="mt-3 text-sm text-[#5a4d43]">{giftStatus}</p>
         ) : null}
       </section>
     </div>

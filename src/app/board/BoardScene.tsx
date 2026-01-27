@@ -58,6 +58,11 @@ export default function BoardScene({
   const [leaderboardStatus, setLeaderboardStatus] = useState<
     "idle" | "loading" | "error"
   >("idle");
+  const [showGifts, setShowGifts] = useState(false);
+  const [gifts, setGifts] = useState<Array<Record<string, unknown>>>([]);
+  const [giftStatus, setGiftStatus] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
 
   const letterInventory = useMemo(() => {
     const map = new Map<string, number>();
@@ -113,6 +118,12 @@ export default function BoardScene({
         setTypedWord((value) => value.slice(0, -1));
         return;
       }
+      if (event.key === "Enter") {
+        if (wordStatus === "valid" && typedWord.length > 0) {
+          handlePlace();
+        }
+        return;
+      }
       if (event.key === "Shift") {
         if (anchorIndexes.length > 1) {
           setAnchorOccurrence((value) => (value + 1) % anchorIndexes.length);
@@ -132,7 +143,7 @@ export default function BoardScene({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [anchorIndexes.length, letterInventory, selected]);
+  }, [anchorIndexes.length, letterInventory, selected, typedWord, wordStatus]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
@@ -211,6 +222,39 @@ export default function BoardScene({
         setLeaderboardStatus("error");
       });
   }, [showLeaderboard]);
+
+  const loadGifts = async () => {
+    if (!loggedIn) {
+      return;
+    }
+    setGiftStatus("loading");
+    try {
+      const response = await fetch("/api/gifts/available");
+      const data = (await response.json()) as { gifts?: Array<Record<string, unknown>> };
+      if (!response.ok) {
+        setGiftStatus("error");
+        return;
+      }
+      setGifts(data.gifts ?? []);
+      setGiftStatus("idle");
+    } catch (error) {
+      setGiftStatus("error");
+    }
+  };
+
+  useEffect(() => {
+    if (!loggedIn) {
+      return;
+    }
+    loadGifts();
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (!showGifts) {
+      return;
+    }
+    loadGifts();
+  }, [showGifts]);
 
   useEffect(() => {
     if (!loggedIn) {
@@ -351,6 +395,7 @@ export default function BoardScene({
           setScore(lettersData.user.total_score);
         }
       }
+      loadGifts();
       if (boardResponse.ok) {
         const boardData = (await boardResponse.json()) as {
           tiles?: Array<Record<string, unknown>>;
@@ -369,6 +414,33 @@ export default function BoardScene({
       setPlaceMessage(
         error instanceof Error ? error.message : "Unable to place word.",
       );
+    }
+  };
+
+  const handleClaimGift = async (giftId: number) => {
+    try {
+      const response = await fetch("/api/gifts/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gift_id: giftId }),
+      });
+      if (!response.ok) {
+        return;
+      }
+      await loadGifts();
+      const lettersResponse = await fetch("/api/letters");
+      if (lettersResponse.ok) {
+        const lettersData = (await lettersResponse.json()) as {
+          letters?: LetterEntry[];
+          user?: { total_score?: number };
+        };
+        setInventory(lettersData.letters ?? []);
+        if (typeof lettersData.user?.total_score === "number") {
+          setScore(lettersData.user.total_score);
+        }
+      }
+    } catch (error) {
+      return;
     }
   };
 
@@ -463,6 +535,38 @@ export default function BoardScene({
             <path d="M9 21v-6h6v6" />
           </svg>
         </a>
+        {loggedIn ? (
+          <button
+            type="button"
+            onClick={() => setShowGifts((value) => !value)}
+            className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 bg-white/80 text-[#6b4b3d] shadow-lg shadow-black/5"
+            aria-label="Gifts"
+            title="Gifts"
+          >
+            <span className="sr-only">Gifts</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 9h18v4H3z" />
+              <path d="M3 13h18v8H3z" />
+              <path d="M12 9v12" />
+              <path d="M8.5 5.5c0-1.2 1-2.5 2.5-2.5 1.5 0 2.5 1.3 2.5 2.5S12.5 8 11 8c-1.5 0-2.5-1.3-2.5-2.5Z" />
+              <path d="M12.5 5.5c0-1.2 1-2.5 2.5-2.5 1.5 0 2.5 1.3 2.5 2.5S16.5 8 15 8c-1.5 0-2.5-1.3-2.5-2.5Z" />
+            </svg>
+            {gifts.length > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#d76f4b] text-[10px] font-semibold text-white">
+                {gifts.length}
+              </span>
+            ) : null}
+          </button>
+        ) : null}
       </div>
 
       <div className="pointer-events-none absolute right-4 top-20 flex flex-col items-end gap-3 sm:right-6 sm:top-6">
@@ -551,16 +655,72 @@ export default function BoardScene({
         </div>
       ) : null}
 
+      {showGifts ? (
+        <div className="pointer-events-none absolute right-6 top-24 w-72">
+          <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/90 p-4 text-xs text-[#5a4d43] shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+              <span>Gifts</span>
+              <button
+                type="button"
+                onClick={() => setShowGifts(false)}
+                className="text-[10px] text-[#a38b7a]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {giftStatus === "loading" ? <div>Loading gifts...</div> : null}
+              {giftStatus === "error" ? <div>Unable to load gifts.</div> : null}
+              {giftStatus === "idle" && gifts.length === 0 ? (
+                <div>No gifts available.</div>
+              ) : null}
+              {gifts.map((gift) => {
+                let lettersPreview = "";
+                try {
+                  const parsed = JSON.parse(String(gift.letters_json ?? "[]"));
+                  if (Array.isArray(parsed)) {
+                    lettersPreview = parsed
+                      .map((entry) => `${entry.letter}x${entry.quantity}`)
+                      .join(", ");
+                  }
+                } catch (error) {
+                  lettersPreview = "";
+                }
+                return (
+                  <div
+                    key={String(gift.id)}
+                    className="rounded-2xl border border-black/5 bg-[#fff7ef] px-3 py-3"
+                  >
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+                      <span>{String(gift.title ?? "Gift")}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleClaimGift(Number(gift.id))}
+                        className="rounded-full bg-[#d76f4b] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
+                      >
+                        Claim
+                      </button>
+                    </div>
+                    {lettersPreview ? (
+                      <div className="mt-2 text-[11px] text-[#5a4d43]">
+                        {lettersPreview}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div
         className="pointer-events-none absolute left-1/2 w-[min(720px,92vw)] -translate-x-1/2"
         style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
       >
         <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/90 p-4 shadow-2xl shadow-black/10">
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
-            <span>Inventory Keyboard</span>
-            <span className="text-[#a38b7a]">
-              {loggedIn ? "Ready" : "Log in to play"}
-            </span>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+            {loggedIn ? "" : "Log in to play"}
           </div>
           <div className="mt-3 space-y-2">
             {KEY_ROWS.map((row) => (
@@ -597,12 +757,8 @@ export default function BoardScene({
               </div>
             ))}
           </div>
-          <div className="mt-3 rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] px-4 py-2 text-xs text-[#5a4d43]">
-            {selected
-              ? typedWord.length > 0
-                ? `Draft: ${typedWord.toUpperCase()}`
-                : "Start typing to preview the next word."
-              : "Pick a tile to anchor a new word."}
+          <div className="mt-3 text-xs text-[#5a4d43]">
+            {selected && typedWord.length > 0 ? `Draft: ${typedWord.toUpperCase()}` : ""}
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <button
@@ -612,9 +768,7 @@ export default function BoardScene({
             >
               {showInventory ? "Hide inventory" : "Inventory"}
             </button>
-          </div>
-          {selected ? (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
+            {selected ? (
               <button
                 type="button"
                 disabled={!loggedIn || wordStatus === "checking" || !typedWord}
@@ -623,6 +777,10 @@ export default function BoardScene({
               >
                 {placeStatus === "placing" ? "Placing..." : "Place word"}
               </button>
+            ) : null}
+          </div>
+          {selected ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
               <span className="text-xs uppercase tracking-[0.2em] text-[#6b4b3d]">
                 {wordStatus === "checking"
                   ? "Checking..."

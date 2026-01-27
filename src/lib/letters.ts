@@ -29,6 +29,44 @@ export const SCRABBLE_SCORES: Record<string, number> = {
   z: 10,
 };
 
+export const BASE_INVENTORY: Array<{ letter: string; quantity: number }> = [
+  { letter: "e", quantity: 3 },
+  { letter: "a", quantity: 2 },
+  { letter: "r", quantity: 2 },
+  { letter: "t", quantity: 2 },
+  { letter: "o", quantity: 2 },
+  { letter: "i", quantity: 2 },
+  { letter: "n", quantity: 2 },
+  { letter: "s", quantity: 2 },
+  { letter: "l", quantity: 1 },
+  { letter: "d", quantity: 1 },
+  { letter: "u", quantity: 1 },
+  { letter: "g", quantity: 1 },
+];
+
+const REWARD_POOL: Array<{ letter: string; weight: number }> = [
+  { letter: "e", weight: 10 },
+  { letter: "a", weight: 8 },
+  { letter: "r", weight: 8 },
+  { letter: "t", weight: 7 },
+  { letter: "o", weight: 7 },
+  { letter: "i", weight: 6 },
+  { letter: "n", weight: 6 },
+  { letter: "s", weight: 6 },
+  { letter: "l", weight: 5 },
+  { letter: "d", weight: 4 },
+  { letter: "u", weight: 4 },
+  { letter: "g", weight: 3 },
+  { letter: "m", weight: 3 },
+  { letter: "b", weight: 2 },
+  { letter: "p", weight: 2 },
+  { letter: "c", weight: 2 },
+  { letter: "h", weight: 2 },
+  { letter: "y", weight: 1 },
+  { letter: "f", weight: 1 },
+  { letter: "w", weight: 1 },
+];
+
 const WEIGHTS_BY_SCORE: Record<number, number[]> = {
   1: [0.55, 0.3, 0.15],
   2: [0.75, 0.2, 0.05],
@@ -50,6 +88,12 @@ const weightedIndex = (weights: number[]) => {
     }
   }
   return weights.length - 1;
+};
+
+const pickWeighted = () => {
+  const weights = REWARD_POOL.map((item) => item.weight);
+  const index = weightedIndex(weights);
+  return REWARD_POOL[Math.min(index, REWARD_POOL.length - 1)].letter;
 };
 
 const normalizeAnswerLetters = (answer: string) => {
@@ -84,4 +128,8 @@ export const pickAwardLetter = (answer: string, score: number) => {
   const selected = tierLetters[randomInt(0, tierLetters.length)];
 
   return selected?.letter ?? null;
+};
+
+export const pickRewardLetters = (count: number) => {
+  return Array.from({ length: count }).map(() => pickWeighted());
 };
