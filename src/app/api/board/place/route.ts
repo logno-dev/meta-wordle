@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { isValidWord } from "@/lib/dictionary";
 import { SCRABBLE_SCORES, pickRewardLetters } from "@/lib/letters";
+import { setBoardUpdated } from "@/lib/board-meta";
 
 type PlacePayload = {
   word?: string;
@@ -273,6 +274,7 @@ export async function POST(request: Request) {
     });
 
     await database.batch(statements);
+    await setBoardUpdated(placedAt);
 
     return NextResponse.json({
       success: true,

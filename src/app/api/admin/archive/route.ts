@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeUserRow } from "@/lib/db-utils";
+import { setBoardUpdated } from "@/lib/board-meta";
 
 export async function POST(request: Request) {
   try {
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
       { sql: "DELETE FROM board_words", args: [] },
       { sql: "UPDATE users SET total_score = 0", args: [] },
     ]);
+    await setBoardUpdated(archivedAt);
 
     return NextResponse.json({ success: true, archive_id: archiveId });
   } catch (error) {

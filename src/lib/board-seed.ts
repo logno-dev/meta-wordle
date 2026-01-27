@@ -1,4 +1,5 @@
 import { db, ensureSchema, ensureSystemUser } from "@/lib/db";
+import { setBoardUpdated } from "@/lib/board-meta";
 
 const SEED_WORDS = [
   "lumen",
@@ -58,6 +59,7 @@ export const seedBoardIfEmpty = async () => {
     args: [startX + index, startY, letter, wordId, systemUserId, placedAt],
   }));
   await database.batch(tileStatements);
+  await setBoardUpdated(placedAt);
 
   return { seeded: true, word };
 };

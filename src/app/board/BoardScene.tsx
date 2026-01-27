@@ -63,6 +63,7 @@ export default function BoardScene({
   const [giftStatus, setGiftStatus] = useState<"idle" | "loading" | "error">(
     "idle",
   );
+  const [lastBoardUpdate, setLastBoardUpdate] = useState<string | null>(null);
 
   const letterInventory = useMemo(() => {
     const map = new Map<string, number>();
@@ -257,6 +258,59 @@ export default function BoardScene({
   }, [showGifts]);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const pollUpdate = async () => {
+      try {
+        const response = await fetch("/api/board/updated");
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { updated_at?: string | null };
+        const updatedAt = data.updated_at ?? null;
+        if (!updatedAt || updatedAt === lastBoardUpdate) {
+          if (!lastBoardUpdate && updatedAt) {
+            setLastBoardUpdate(updatedAt);
+          }
+          return;
+        }
+
+        setLastBoardUpdate(updatedAt);
+        const boardResponse = await fetch("/api/board/state");
+        if (boardResponse.ok) {
+          const boardData = (await boardResponse.json()) as {
+            tiles?: Array<Record<string, unknown>>;
+          };
+          const nextTiles: Tile[] = (boardData.tiles ?? []).map((row) => ({
+            x: Number(row.x ?? 0),
+            y: Number(row.y ?? 0),
+            letter: String(row.letter ?? ""),
+            direction: row.direction === "vertical" ? "vertical" : "horizontal",
+          }));
+          setBoardTiles(nextTiles);
+        }
+
+        if (typedWord.length > 0) {
+          setTypedWord("");
+          setSelected(null);
+          setWordStatus("idle");
+          setPlaceStatus("idle");
+          setPlaceMessage("Board updated. Draft cleared.");
+        }
+      } catch (error) {
+        return;
+      }
+    };
+
+    pollUpdate();
+    timer = setInterval(pollUpdate, 4000);
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, [lastBoardUpdate, typedWord.length]);
+
+  useEffect(() => {
     if (!loggedIn) {
       return;
     }
@@ -350,8 +404,6 @@ export default function BoardScene({
       return;
     }
     if (wordStatus === "invalid" || wordStatus === "checking") {
-      setPlaceStatus("error");
-      setPlaceMessage("Word is not valid yet.");
       return;
     }
 
@@ -718,6 +770,24 @@ export default function BoardScene({
         className="pointer-events-none absolute left-1/2 w-[min(720px,92vw)] -translate-x-1/2"
         style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
       >
+        <div className="pointer-events-auto mb-3 flex min-h-[20px] flex-wrap items-center justify-between gap-3 text-xs text-[#5a4d43]">
+          <span>
+            {selected && typedWord.length > 0
+              ? `Draft: ${typedWord.toUpperCase()}`
+              : ""}
+          </span>
+          {selected ? (
+            <span className="uppercase tracking-[0.2em] text-[#6b4b3d]">
+              {wordStatus === "checking"
+                ? "Checking..."
+                : wordStatus === "valid"
+                  ? "Valid"
+                  : wordStatus === "invalid"
+                    ? "Not a word"
+                    : ""}
+            </span>
+          ) : null}
+        </div>
         <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/90 p-4 shadow-2xl shadow-black/10">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
             {loggedIn ? "" : "Log in to play"}
@@ -754,11 +824,31 @@ export default function BoardScene({
                     </button>
                   );
                 })}
+                {row === KEY_ROWS[KEY_ROWS.length - 1] ? (
+                  <button
+                    type="button"
+                    onClick={() => setTypedWord((value) => value.slice(0, -1))}
+                    className="relative flex h-10 w-12 items-center justify-center rounded-xl border border-black/10 bg-white text-[#241c15] transition hover:border-[#d76f4b]"
+                    aria-label="Backspace"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 5H9l-6 7 6 7h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z" />
+                      <path d="M14.5 9.5 10 14" />
+                      <path d="M10 9.5 14.5 14" />
+                    </svg>
+                  </button>
+                ) : null}
               </div>
             ))}
-          </div>
-          <div className="mt-3 text-xs text-[#5a4d43]">
-            {selected && typedWord.length > 0 ? `Draft: ${typedWord.toUpperCase()}` : ""}
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <button
@@ -771,7 +861,12 @@ export default function BoardScene({
             {selected ? (
               <button
                 type="button"
-                disabled={!loggedIn || wordStatus === "checking" || !typedWord}
+                disabled={
+                  !loggedIn ||
+                  !typedWord ||
+                  wordStatus !== "valid" ||
+                  placeStatus === "placing"
+                }
                 onClick={handlePlace}
                 className="inline-flex h-10 items-center justify-center rounded-full bg-[#d76f4b] px-5 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231] disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -779,21 +874,8 @@ export default function BoardScene({
               </button>
             ) : null}
           </div>
-          {selected ? (
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <span className="text-xs uppercase tracking-[0.2em] text-[#6b4b3d]">
-                {wordStatus === "checking"
-                  ? "Checking..."
-                  : wordStatus === "valid"
-                    ? "Valid"
-                    : wordStatus === "invalid"
-                      ? "Not a word"
-                      : ""}
-              </span>
-              {placeMessage ? (
-                <span className="text-xs text-[#b45231]">{placeMessage}</span>
-              ) : null}
-            </div>
+          {selected && placeMessage ? (
+            <div className="mt-2 text-xs text-[#b45231]">{placeMessage}</div>
           ) : null}
         </div>
       </div>

@@ -121,6 +121,13 @@ export const ensureSchema = async () => {
       args: [],
     },
     {
+      sql: `CREATE TABLE IF NOT EXISTS board_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )`,
+      args: [],
+    },
+    {
       sql: `CREATE TABLE IF NOT EXISTS gifts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
