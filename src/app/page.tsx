@@ -1,64 +1,97 @@
-import Image from "next/image";
-
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="relative min-h-screen">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-32 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-orange-200/60 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-72 w-72 translate-x-24 rounded-full bg-rose-200/70 blur-3xl" />
+        <div className="absolute top-1/3 left-[-10%] h-64 w-64 rounded-full bg-amber-100/80 blur-3xl" />
+      </div>
+      <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-16 px-6 py-14 sm:px-10">
+        <header className="flex flex-col gap-6">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-sm shadow-black/5">
+            Wordle x Scrabble League
+          </div>
+          <h1 className="max-w-2xl font-display text-4xl leading-tight text-[#241c15] sm:text-5xl">
+            Earn letters from your Wordle streak, then weave them into a shared
+            endless board.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="max-w-2xl text-base leading-relaxed text-[#5a4d43] sm:text-lg">
+            Submit your Wordle results via Telegram, collect weighted Scrabble
+            letters, and build words on a living grid that never ends. Every
+            play shapes the community board.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a
+              href="/connect"
+              className="flex w-full items-center justify-center rounded-full bg-[#d76f4b] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231] sm:w-auto"
+            >
+              Connect Telegram
+            </a>
+            <div className="flex w-full items-center justify-center rounded-full border border-black/10 bg-white/70 px-6 py-3 text-sm font-semibold text-[#3f332b] shadow-sm shadow-black/5 sm:w-auto">
+              Board mode launches with v1
+            </div>
+          </div>
+        </header>
+
+        <section className="grid gap-6 md:grid-cols-3">
+          {[
+            {
+              title: "Submit your Wordle",
+              detail:
+                "Drop the daily share grid in Telegram. Scores map to weighted letter rewards from the day's solution.",
+            },
+            {
+              title: "Claim letters",
+              detail:
+                "High scores bias toward high-value Scrabble tiles, but every result keeps a shot at rare letters.",
+            },
+            {
+              title: "Build the board",
+              detail:
+                "Place words horizontally or vertically on an endless grid, borrowing existing letters to chain plays.",
+            },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-xl shadow-black/5"
+            >
+              <h2 className="font-display text-2xl text-[#241c15]">
+                {item.title}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-[#5a4d43]">
+                {item.detail}
+              </p>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl border border-black/10 bg-white/80 p-8 shadow-2xl shadow-black/5">
+            <h3 className="font-display text-3xl text-[#241c15]">What you can do today</h3>
+            <div className="mt-6 grid gap-4 text-sm text-[#5a4d43]">
+              <div className="rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] p-4">
+                Connect your Telegram account with a one-time token.
+              </div>
+              <div className="rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] p-4">
+                Track earned letters and see your next playable word.
+              </div>
+              <div className="rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] p-4">
+                Join the first public board once v1 launches.
+              </div>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-black/10 bg-[#1f1b16] p-8 text-white shadow-2xl shadow-black/10">
+            <h3 className="font-display text-3xl">Endless board mode</h3>
+            <p className="mt-4 text-sm leading-relaxed text-[#e8d6c6]">
+              The board expands as you play. Words must connect, overlap, and
+              obey Scrabble adjacency rules. Every play unlocks new lanes for
+              the community to explore.
+            </p>
+            <div className="mt-6 rounded-2xl bg-white/10 p-4 text-xs uppercase tracking-[0.2em] text-[#f9e2cf]">
+              We are building this now.
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
