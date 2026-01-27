@@ -15,11 +15,19 @@ export async function GET(request: Request) {
     let user: ReturnType<typeof normalizeUserRow> | undefined;
 
     if (telegramUserId || username) {
+      const lookupValue = telegramUserId ?? username;
+      if (!lookupValue) {
+        return NextResponse.json(
+          { error: "telegram_user_id or username is required." },
+          { status: 400 },
+        );
+      }
+
       const userResult = await database.execute({
         sql: telegramUserId
           ? "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE telegram_user_id = ?"
           : "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
-        args: [telegramUserId ?? username],
+        args: [lookupValue],
       });
 
       user = normalizeUserRow(
