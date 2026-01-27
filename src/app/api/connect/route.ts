@@ -96,6 +96,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const createdAt = new Date().toISOString();
+    const updatedAt = Math.floor(Date.now() / 1000);
 
     await database.batch([
       {
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
       },
       {
         sql: "UPDATE telegram_link_tokens SET used_at = ?, updated_at = ? WHERE token = ?",
-        args: [createdAt, createdAt, token],
+        args: [createdAt, updatedAt, token],
       },
     ]);
 

@@ -25,7 +25,7 @@ export const ensureSchema = async () => {
         token TEXT PRIMARY KEY,
         telegram_user_id TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
         used_at TEXT
       )`,
       args: [],
