@@ -55,7 +55,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
     });
     letters = lettersResult.rows
       .map((row) => normalizeLetterRow(row as Record<string, unknown>))
-      .filter(Boolean) as ReturnType<typeof normalizeLetterRow>[];
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   }
 
   return (
