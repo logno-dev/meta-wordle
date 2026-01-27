@@ -519,7 +519,10 @@ export default function BoardScene({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-6 left-1/2 w-[min(720px,92vw)] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]">
+      <div
+        className="pointer-events-none absolute left-1/2 w-[min(720px,92vw)] -translate-x-1/2"
+        style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
+      >
         <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/90 p-4 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
             <span>Inventory Keyboard</span>

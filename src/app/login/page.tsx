@@ -1,6 +1,28 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { db, ensureSchema } from "@/lib/db";
+import { normalizeUserRow } from "@/lib/db-utils";
 import LoginForm from "./LoginForm";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get("session_token")?.value;
+
+  if (sessionToken) {
+    await ensureSchema();
+    const database = db();
+    const sessionResult = await database.execute({
+      sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at, users.total_score FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
+      args: [sessionToken, new Date().toISOString()],
+    });
+    const user = normalizeUserRow(
+      sessionResult.rows[0] as Record<string, unknown> | undefined,
+    );
+    if (user?.id) {
+      redirect("/board");
+    }
+  }
+
   return (
     <div className="relative min-h-screen px-6 py-14 sm:px-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">

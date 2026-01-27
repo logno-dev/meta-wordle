@@ -1,4 +1,26 @@
-export default function Home() {
+import { cookies } from "next/headers";
+import { db, ensureSchema } from "@/lib/db";
+import { normalizeUserRow } from "@/lib/db-utils";
+
+export default async function Home() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get("session_token")?.value;
+
+  await ensureSchema();
+  const database = db();
+
+  let isLoggedIn = false;
+  if (sessionToken) {
+    const sessionResult = await database.execute({
+      sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at, users.total_score FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
+      args: [sessionToken, new Date().toISOString()],
+    });
+    const user = normalizeUserRow(
+      sessionResult.rows[0] as Record<string, unknown> | undefined,
+    );
+    isLoggedIn = Boolean(user?.id);
+  }
+
   return (
     <div className="relative min-h-screen">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -22,10 +44,10 @@ export default function Home() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <a
-              href="/login"
+              href={isLoggedIn ? "/board" : "/login"}
               className="flex w-full items-center justify-center rounded-full bg-[#d76f4b] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231] sm:w-auto"
             >
-              Log in
+              {isLoggedIn ? "Go to board" : "Log in"}
             </a>
             <div className="flex w-full items-center justify-center rounded-full border border-black/10 bg-white/70 px-6 py-3 text-sm font-semibold text-[#3f332b] shadow-sm shadow-black/5 sm:w-auto">
               Board mode launches with v1
