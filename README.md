@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wordle Board Portal
 
-## Getting Started
-
-First, run the development server:
+## Local setup
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Required env vars:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
+- `BOT_API_TOKEN` (shared secret between bot and portal)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Bot integration
 
-## Learn More
+The Telegram bot should call the portal endpoint to award letters when a Wordle
+submission is validated.
 
-To learn more about Next.js, take a look at the following resources:
+Endpoint:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+POST /api/award
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Headers:
 
-## Deploy on Vercel
+```
+x-bot-token: <BOT_API_TOKEN>
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Payload:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```json
+{
+  "telegram_user_id": "12345",
+  "wordle_day": "2026-01-26",
+  "answer": "crane",
+  "score": 3
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "letter": "c",
+  "score": 3
+}
+```
+
+Notes:
+
+- The endpoint rejects duplicate submissions per user/day.
+- Scores accept 1-6 or "x" for failed attempts (treated as 7).
+- The awarded letter is weighted by Scrabble value and the score tier.
+
+## Connect flow
+
+The bot inserts into `telegram_link_tokens` before sending the link. The portal
+reads that row and creates a user account on `/connect`.

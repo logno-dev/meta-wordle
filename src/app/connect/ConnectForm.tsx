@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ConnectFormProps = {
   token?: string | null;
 };
 
 export default function ConnectForm({ token }: ConnectFormProps) {
+  const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
     "idle",
   );
@@ -54,8 +56,9 @@ export default function ConnectForm({ token }: ConnectFormProps) {
       }
 
       setStatus("success");
-      setMessage("Connected! Head back to Telegram to submit your Wordle.");
+      setMessage("Connected! Sending you to the board...");
       form.reset();
+      setTimeout(() => router.push("/board"), 500);
     } catch (error) {
       setStatus("error");
       const message =

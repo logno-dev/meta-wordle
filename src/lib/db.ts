@@ -40,6 +40,30 @@ export const ensureSchema = async () => {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS user_letters (
+        user_id INTEGER NOT NULL,
+        letter TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, letter),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS wordle_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        wordle_day TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE (user_id, wordle_day)
+      )`,
+      args: [],
+    },
   ]);
 
   const tokenColumns = await database.execute({

@@ -22,10 +22,10 @@ export default function Home() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <a
-              href="/connect"
+              href="/login"
               className="flex w-full items-center justify-center rounded-full bg-[#d76f4b] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231] sm:w-auto"
             >
-              Connect Telegram
+              Log in
             </a>
             <div className="flex w-full items-center justify-center rounded-full border border-black/10 bg-white/70 px-6 py-3 text-sm font-semibold text-[#3f332b] shadow-sm shadow-black/5 sm:w-auto">
               Board mode launches with v1
