@@ -12,6 +12,12 @@ import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeLetterRow, normalizeUserRow } from "@/lib/db-utils";
 
+type LetterEntry = {
+  letter: string;
+  quantity: number;
+  updated_at: string | null;
+};
+
 export default async function BoardPage({ searchParams }: BoardPageProps) {
   const resolvedParams = searchParams ? await searchParams : undefined;
   const username = normalizeParam(resolvedParams?.username);
@@ -23,7 +29,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
   const database = db();
 
   let user = null as ReturnType<typeof normalizeUserRow> | null;
-  let letters: ReturnType<typeof normalizeLetterRow>[] = [];
+  let letters: LetterEntry[] = [];
 
   if (username || telegramUserId) {
     const lookupValue = telegramUserId ?? username;
@@ -55,7 +61,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
     });
     letters = lettersResult.rows
       .map((row) => normalizeLetterRow(row as Record<string, unknown>))
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+      .filter((entry): entry is LetterEntry => Boolean(entry));
   }
 
   return (
