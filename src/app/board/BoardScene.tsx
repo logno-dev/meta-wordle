@@ -49,6 +49,7 @@ export default function BoardScene({
   const [boardTiles, setBoardTiles] = useState<Tile[]>(tiles);
   const [inventory, setInventory] = useState<LetterEntry[]>(letters);
   const [score, setScore] = useState(totalScore);
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboard, setLeaderboard] = useState<
     Array<{ username: string; total_score: number }>
@@ -138,6 +139,7 @@ export default function BoardScene({
       return;
     }
     setDragging(true);
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   };
 
@@ -145,14 +147,29 @@ export default function BoardScene({
     if (!dragging) {
       return;
     }
+    const last = lastPointerRef.current;
+    if (!last) {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+      return;
+    }
+    const deltaX = event.clientX - last.x;
+    const deltaY = event.clientY - last.y;
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
     setOffset((prev) => ({
-      x: prev.x + event.movementX,
-      y: prev.y + event.movementY,
+      x: prev.x + deltaX,
+      y: prev.y + deltaY,
     }));
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     setDragging(false);
+    lastPointerRef.current = null;
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+  };
+
+  const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
+    setDragging(false);
+    lastPointerRef.current = null;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
   };
 
@@ -327,10 +344,11 @@ export default function BoardScene({
     <div className="relative h-screen w-screen overflow-hidden bg-[#efe7dc]">
       <div
         ref={containerRef}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         <div
           className="absolute rounded-[48px] border border-black/10 bg-[radial-gradient(circle_at_top,#fff8ee_0%,#f3eadd_55%,#e9dfd1_100%)]"
