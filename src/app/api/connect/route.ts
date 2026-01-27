@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db, ensureSchema } from "@/lib/db";
+import { normalizeTokenRow } from "@/lib/db-utils";
 
 type ConnectPayload = {
   token?: string;
@@ -51,9 +52,9 @@ export async function POST(request: Request) {
       sql: "SELECT token, telegram_user_id, used_at FROM telegram_link_tokens WHERE token = ?",
       args: [token],
     });
-    const tokenRow = tokenResult.rows[0] as
-      | { token: string; telegram_user_id: string; used_at: string | null }
-      | undefined;
+    const tokenRow = normalizeTokenRow(
+      tokenResult.rows[0] as Record<string, unknown> | undefined,
+    );
 
     if (!tokenRow) {
       return NextResponse.json(
