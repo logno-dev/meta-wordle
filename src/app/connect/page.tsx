@@ -1,10 +1,14 @@
 import ConnectForm from "./ConnectForm";
 
 type ConnectPageProps = {
-  searchParams?: { token?: string };
+  searchParams?: { token?: string | string[] };
 };
 
 export default function ConnectPage({ searchParams }: ConnectPageProps) {
+  const token = Array.isArray(searchParams?.token)
+    ? searchParams?.token[0]
+    : searchParams?.token;
+
   return (
     <div className="relative min-h-screen px-6 py-14 sm:px-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -18,7 +22,7 @@ export default function ConnectPage({ searchParams }: ConnectPageProps) {
         >
           Wordle Board
         </a>
-        <ConnectForm token={searchParams?.token} />
+        <ConnectForm token={token} />
       </main>
     </div>
   );
