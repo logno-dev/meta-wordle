@@ -212,6 +212,37 @@ export default function BoardScene({
       });
   }, [showLeaderboard]);
 
+  useEffect(() => {
+    if (!loggedIn) {
+      return;
+    }
+    const refreshInventory = async () => {
+      try {
+        const response = await fetch("/api/letters");
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as {
+          letters?: LetterEntry[];
+          user?: { total_score?: number };
+        };
+        setInventory(data.letters ?? []);
+        if (typeof data.user?.total_score === "number") {
+          setScore(data.user.total_score);
+        }
+      } catch (error) {
+        return;
+      }
+    };
+
+    if (showInventory) {
+      refreshInventory();
+      return;
+    }
+
+    refreshInventory();
+  }, [loggedIn, showInventory]);
+
   const ghostTiles = useMemo(() => {
     if (!selected || typedWord.length === 0) {
       return [] as Tile[];
