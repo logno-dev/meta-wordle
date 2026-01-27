@@ -51,6 +51,7 @@ export default function BoardScene({
   const [score, setScore] = useState(totalScore);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
   const [leaderboard, setLeaderboard] = useState<
     Array<{ username: string; total_score: number }>
   >([]);
@@ -572,6 +573,15 @@ export default function BoardScene({
                 : "Start typing to preview the next word."
               : "Pick a tile to anchor a new word."}
           </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setShowInventory((value) => !value)}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-sm shadow-black/5"
+            >
+              {showInventory ? "Hide inventory" : "Inventory"}
+            </button>
+          </div>
           {selected ? (
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
@@ -598,6 +608,40 @@ export default function BoardScene({
           ) : null}
         </div>
       </div>
+
+      {showInventory ? (
+        <div className="pointer-events-none absolute left-1/2 w-[min(720px,92vw)] -translate-x-1/2" style={{ bottom: "calc(180px + env(safe-area-inset-bottom))" }}>
+          <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/95 p-4 text-xs text-[#5a4d43] shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+              <span>Inventory</span>
+              <button
+                type="button"
+                onClick={() => setShowInventory(false)}
+                className="text-[10px] text-[#a38b7a]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {inventory.filter((entry) => entry.quantity > 0).length === 0 ? (
+                <div>No letters yet.</div>
+              ) : (
+                inventory
+                  .filter((entry) => entry.quantity > 0)
+                  .map((entry) => (
+                    <div
+                      key={entry.letter}
+                      className="flex h-9 items-center gap-2 rounded-2xl border border-black/5 bg-[#fff7ef] px-3 text-xs font-semibold uppercase text-[#241c15]"
+                    >
+                      <span>{entry.letter}</span>
+                      <span className="text-[10px] text-[#6b4b3d]">x{entry.quantity}</span>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
