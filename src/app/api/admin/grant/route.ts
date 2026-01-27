@@ -57,11 +57,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    const lookupValue = telegramUserId ?? username;
+    if (!lookupValue) {
+      return NextResponse.json(
+        { error: "username or telegram_user_id is required." },
+        { status: 400 },
+      );
+    }
+
     const userResult = await database.execute({
       sql: telegramUserId
         ? "SELECT id FROM users WHERE telegram_user_id = ?"
         : "SELECT id FROM users WHERE username = ?",
-      args: [telegramUserId ?? username],
+      args: [lookupValue],
     });
     const userId = String(
       (userResult.rows[0] as Record<string, unknown> | undefined)?.id ?? "",
