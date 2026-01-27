@@ -306,11 +306,12 @@ export default function BoardScene({
         const boardData = (await boardResponse.json()) as {
           tiles?: Array<Record<string, unknown>>;
         };
-        const nextTiles = (boardData.tiles ?? []).map((row) => ({
+        const nextTiles: Tile[] = (boardData.tiles ?? []).map((row) => ({
           x: Number(row.x ?? 0),
           y: Number(row.y ?? 0),
           letter: String(row.letter ?? ""),
-          direction: row.direction === "vertical" ? "vertical" : "horizontal",
+          direction:
+            row.direction === "vertical" ? "vertical" : "horizontal",
         }));
         setBoardTiles(nextTiles);
       }
