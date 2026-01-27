@@ -26,15 +26,18 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
   let letters: ReturnType<typeof normalizeLetterRow>[] = [];
 
   if (username || telegramUserId) {
-    const userResult = await database.execute({
-      sql: telegramUserId
-        ? "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE telegram_user_id = ?"
-        : "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
-      args: [telegramUserId ?? username],
-    });
-    user = normalizeUserRow(
-      userResult.rows[0] as Record<string, unknown> | undefined,
-    );
+    const lookupValue = telegramUserId ?? username;
+    if (lookupValue) {
+      const userResult = await database.execute({
+        sql: telegramUserId
+          ? "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE telegram_user_id = ?"
+          : "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
+        args: [lookupValue],
+      });
+      user = normalizeUserRow(
+        userResult.rows[0] as Record<string, unknown> | undefined,
+      );
+    }
   } else if (sessionToken) {
     const sessionResult = await database.execute({
       sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
