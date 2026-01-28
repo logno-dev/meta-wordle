@@ -25,6 +25,7 @@ type BoardSceneProps = {
 
 const TILE_SIZE = 56;
 const PLANE_SIZE = 4200;
+const KEYBOARD_ESTIMATE = 260;
 
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 
@@ -75,6 +76,7 @@ export default function BoardScene({
     | null
   >(null);
   const tileInfoCache = useRef(new Map<string, Array<{ word: string; username: string }>>());
+  const [hasCentered, setHasCentered] = useState(false);
 
   const letterInventory = useMemo(() => {
     const map = new Map<string, number>();
@@ -197,13 +199,49 @@ export default function BoardScene({
     }
   }, [anchorIndexes.length, anchorOccurrence]);
 
-  useEffect(() => {
+  const computeCenterOffset = () => {
     if (!containerRef.current) {
-      return;
+      return null;
     }
     const { offsetWidth, offsetHeight } = containerRef.current;
-    setOffset({ x: offsetWidth / 2, y: offsetHeight / 2 });
-  }, []);
+    const seedWordId = boardTiles.reduce<number | null>((minId, tile) => {
+      if (!tile.word_id) {
+        return minId;
+      }
+      if (minId === null || tile.word_id < minId) {
+        return tile.word_id;
+      }
+      return minId;
+    }, null);
+    const seedTiles = seedWordId
+      ? boardTiles.filter((tile) => tile.word_id === seedWordId)
+      : [];
+    const centerX =
+      seedTiles.length > 0
+        ? seedTiles.reduce((sum, tile) => sum + tile.x, 0) / seedTiles.length
+        : 0;
+    const centerY =
+      seedTiles.length > 0
+        ? seedTiles.reduce((sum, tile) => sum + tile.y, 0) / seedTiles.length
+        : 0;
+    const boardHeight = Math.max(0, offsetHeight - KEYBOARD_ESTIMATE);
+    return {
+      x: offsetWidth / 2 - centerX * TILE_SIZE,
+      y: boardHeight / 2 - centerY * TILE_SIZE,
+    };
+  };
+
+  useEffect(() => {
+    if (hasCentered) {
+      return;
+    }
+    const nextOffset = computeCenterOffset();
+    if (!nextOffset) {
+      return;
+    }
+    setOffset(nextOffset);
+    setHasCentered(true);
+  }, [boardTiles, hasCentered]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -278,11 +316,11 @@ export default function BoardScene({
   };
 
   const handleCenterBoard = () => {
-    if (!containerRef.current) {
+    const nextOffset = computeCenterOffset();
+    if (!nextOffset) {
       return;
     }
-    const { offsetWidth, offsetHeight } = containerRef.current;
-    setOffset({ x: offsetWidth / 2, y: offsetHeight / 2 });
+    setOffset(nextOffset);
   };
 
   const handleSelectTile = (tile: Tile) => {
