@@ -61,6 +61,7 @@ export async function POST(request: Request) {
 
     await database.batch([
       ...scoreStatements,
+      { sql: "DELETE FROM board_word_tiles", args: [] },
       { sql: "DELETE FROM board_tiles", args: [] },
       { sql: "DELETE FROM board_words", args: [] },
       { sql: "UPDATE users SET total_score = 0", args: [] },
