@@ -838,9 +838,14 @@ export default function BoardScene({
           <button
             type="button"
             onClick={() =>
-              setDirectionMode((value) =>
-                value === "perpendicular" ? "straight" : "perpendicular",
-              )
+              setDirectionMode((value) => {
+                setTypedWord("");
+                setAnchorOccurrence(0);
+                setWordStatus("idle");
+                setPlaceStatus("idle");
+                setPlaceMessage(null);
+                return value === "perpendicular" ? "straight" : "perpendicular";
+              })
             }
             className="pointer-events-auto rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-lg shadow-black/5"
           >
