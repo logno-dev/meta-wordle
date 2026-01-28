@@ -56,9 +56,9 @@ export default function ConnectForm({ token }: ConnectFormProps) {
       }
 
       setStatus("success");
-      setMessage("Connected! Sending you to the board...");
+      setMessage("Connected! Redirecting to the board...");
       form.reset();
-      setTimeout(() => router.push("/board"), 500);
+      router.replace("/board");
     } catch (error) {
       setStatus("error");
       const message =
