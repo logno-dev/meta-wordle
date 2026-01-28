@@ -17,6 +17,9 @@ const bodyFont = Manrope({
 export const metadata: Metadata = {
   title: "Wordle Board",
   description: "Earn Scrabble letters by sharing Wordle results.",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({
