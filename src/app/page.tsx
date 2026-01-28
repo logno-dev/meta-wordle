@@ -50,7 +50,7 @@ export default async function Home() {
               {isLoggedIn ? "Go to board" : "Log in"}
             </a>
             <div className="flex w-full items-center justify-center rounded-full border border-black/10 bg-white/70 px-6 py-3 text-sm font-semibold text-[#3f332b] shadow-sm shadow-black/5 sm:w-auto">
-              Board mode launches with v1
+              Live board is active
             </div>
           </div>
         </header>
@@ -98,7 +98,7 @@ export default async function Home() {
                 Track earned letters and see your next playable word.
               </div>
               <div className="rounded-2xl border border-dashed border-black/10 bg-[#fff7ef] p-4">
-                Join the first public board once v1 launches.
+                Jump into the public board and start placing.
               </div>
             </div>
           </div>
@@ -110,7 +110,7 @@ export default async function Home() {
               the community to explore.
             </p>
             <div className="mt-6 rounded-2xl bg-white/10 p-4 text-xs uppercase tracking-[0.2em] text-[#f9e2cf]">
-              We are building this now.
+              Ready for daily play.
             </div>
           </div>
         </section>
