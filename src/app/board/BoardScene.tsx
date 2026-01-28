@@ -964,8 +964,8 @@ export default function BoardScene({
       ) : null}
 
       <div
-        className="pointer-events-none absolute left-1/2 w-[min(720px,92vw)] -translate-x-1/2"
-        style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
+        className="pointer-events-none fixed left-1/2 w-[min(720px,92vw)] -translate-x-1/2"
+        style={{ bottom: "max(16px, env(safe-area-inset-bottom))" }}
       >
         <div className="pointer-events-auto mb-3 flex min-h-[20px] flex-wrap items-center justify-between gap-3 text-xs text-[#5a4d43]">
           <span>
