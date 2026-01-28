@@ -26,6 +26,12 @@ body {
   margin: 0;
 }
 
+html,
+body {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 * {
   box-sizing: border-box;
 }
