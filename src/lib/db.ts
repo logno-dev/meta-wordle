@@ -105,6 +105,16 @@ export const ensureSchema = async () => {
       args: [],
     },
     {
+      sql: `CREATE TABLE IF NOT EXISTS board_word_tiles (
+        word_id INTEGER NOT NULL,
+        x INTEGER NOT NULL,
+        y INTEGER NOT NULL,
+        PRIMARY KEY (word_id, x, y),
+        FOREIGN KEY (word_id) REFERENCES board_words(id)
+      )`,
+      args: [],
+    },
+    {
       sql: `CREATE TABLE IF NOT EXISTS board_archives (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         archived_at TEXT NOT NULL

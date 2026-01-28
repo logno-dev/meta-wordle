@@ -58,7 +58,11 @@ export const seedBoardIfEmpty = async () => {
     sql: "INSERT INTO board_tiles (x, y, letter, word_id, placed_by, placed_at) VALUES (?, ?, ?, ?, ?, ?)",
     args: [startX + index, startY, letter, wordId, systemUserId, placedAt],
   }));
-  await database.batch(tileStatements);
+  const wordTileStatements = word.split("").map((_, index) => ({
+    sql: "INSERT INTO board_word_tiles (word_id, x, y) VALUES (?, ?, ?)",
+    args: [wordId, startX + index, startY],
+  }));
+  await database.batch([...tileStatements, ...wordTileStatements]);
   await setBoardUpdated(placedAt);
 
   return { seeded: true, word };

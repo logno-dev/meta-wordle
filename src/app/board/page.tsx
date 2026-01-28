@@ -24,6 +24,7 @@ type BoardTile = {
   y: number;
   letter: string;
   direction: "horizontal" | "vertical";
+  word_id?: number;
 };
 
 export default async function BoardPage({ searchParams }: BoardPageProps) {
@@ -74,7 +75,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
   }
 
   const tilesResult = await database.execute({
-    sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id",
+    sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_tiles.word_id, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id",
     args: [],
   });
   tiles = tilesResult.rows.map((row) => {
@@ -85,6 +86,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
       letter: String(record.letter ?? ""),
       direction:
         record.direction === "vertical" ? "vertical" : "horizontal",
+      word_id: Number(record.word_id ?? 0),
     } as BoardTile;
   });
 

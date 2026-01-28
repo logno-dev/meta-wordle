@@ -22,9 +22,18 @@ export async function GET(request: Request) {
       args: [limit * 5],
     });
 
+    const latestResult = await database.execute({
+      sql: "SELECT id FROM board_words ORDER BY id DESC LIMIT 1",
+      args: [],
+    });
+    const latestWordId = Number(
+      (latestResult.rows[0] as Record<string, unknown> | undefined)?.id ?? 0,
+    );
+
     return NextResponse.json({
       words: wordsResult.rows,
       tiles: tilesResult.rows,
+      latest_word_id: latestWordId || null,
     });
   } catch (error) {
     const message =

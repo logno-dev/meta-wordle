@@ -145,12 +145,6 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (anchorTile.direction === direction) {
-      return NextResponse.json(
-        { error: "Word must be placed perpendicular to the anchor." },
-        { status: 400 },
-      );
-    }
 
     let hasOverlap = false;
     let hasAdjacent = false;
@@ -253,6 +247,13 @@ export async function POST(request: Request) {
       sql: "INSERT INTO board_tiles (x, y, letter, word_id, placed_by, placed_at) VALUES (?, ?, ?, ?, ?, ?)",
       args: [tile.x, tile.y, tile.letter, wordId, userId, placedAt],
     }));
+
+    for (const pos of positions) {
+      statements.push({
+        sql: "INSERT INTO board_word_tiles (word_id, x, y) VALUES (?, ?, ?)",
+        args: [wordId, pos.x, pos.y],
+      });
+    }
 
     for (const [letter, count] of letterCounts.entries()) {
       statements.push({

@@ -8,6 +8,7 @@ type Tile = {
   y: number;
   letter: string;
   direction: "horizontal" | "vertical";
+  word_id?: number;
 };
 
 type LetterEntry = {
@@ -39,6 +40,9 @@ export default function BoardScene({
   const [selected, setSelected] = useState<Tile | null>(null);
   const [typedWord, setTypedWord] = useState("");
   const [anchorOccurrence, setAnchorOccurrence] = useState(0);
+  const [directionMode, setDirectionMode] = useState<"perpendicular" | "straight">(
+    "perpendicular",
+  );
   const [wordStatus, setWordStatus] = useState<
     "idle" | "checking" | "valid" | "invalid"
   >("idle");
@@ -64,6 +68,13 @@ export default function BoardScene({
     "idle",
   );
   const [lastBoardUpdate, setLastBoardUpdate] = useState<string | null>(null);
+  const [highlightWordId, setHighlightWordId] = useState<number | null>(null);
+  const [boardNotice, setBoardNotice] = useState<string | null>(null);
+  const [hoveredTile, setHoveredTile] = useState<
+    | { x: number; y: number; entries: Array<{ word: string; username: string }> }
+    | null
+  >(null);
+  const tileInfoCache = useRef(new Map<string, Array<{ word: string; username: string }>>());
 
   const letterInventory = useMemo(() => {
     const map = new Map<string, number>();
@@ -71,10 +82,20 @@ export default function BoardScene({
     return map;
   }, [inventory]);
 
+  const boardTileMap = useMemo(() => {
+    const map = new Map<string, string>();
+    boardTiles.forEach((tile) => {
+      map.set(`${tile.x},${tile.y}`, tile.letter);
+    });
+    return map;
+  }, [boardTiles]);
+
   const placementDirection = selected
-    ? selected.direction === "horizontal"
-      ? "vertical"
-      : "horizontal"
+    ? directionMode === "straight"
+      ? selected.direction
+      : selected.direction === "horizontal"
+        ? "vertical"
+        : "horizontal"
     : "horizontal";
 
   const anchorIndexes = useMemo(() => {
@@ -91,6 +112,80 @@ export default function BoardScene({
     anchorIndexes.length > 0
       ? anchorIndexes[Math.min(anchorOccurrence, anchorIndexes.length - 1)]
       : typedWord.length;
+  const hasAnchorInDraft = selected ? typedWord.includes(selected.letter) : false;
+
+  const getPositionForIndex = (index: number, anchorOverride?: number) => {
+    if (!selected) {
+      return null;
+    }
+    const anchorValue = anchorOverride ?? anchorIndex;
+    const startX =
+      placementDirection === "horizontal" ? selected.x - anchorValue : selected.x;
+    const startY =
+      placementDirection === "vertical" ? selected.y - anchorValue : selected.y;
+    return {
+      x: placementDirection === "horizontal" ? startX + index : startX,
+      y: placementDirection === "vertical" ? startY + index : startY,
+    };
+  };
+
+  const draftUsage = useMemo(() => {
+    const usage = new Map<string, number>();
+    if (!selected) {
+      return usage;
+    }
+    typedWord.split("").forEach((draftLetter, index) => {
+      const position = getPositionForIndex(index);
+      if (!position) {
+        return;
+      }
+      const boardLetter = boardTileMap.get(`${position.x},${position.y}`);
+      if (boardLetter) {
+        return;
+      }
+      if (position.x === selected.x && position.y === selected.y) {
+        return;
+      }
+      usage.set(draftLetter, (usage.get(draftLetter) ?? 0) + 1);
+    });
+    return usage;
+  }, [boardTileMap, getPositionForIndex, selected, typedWord]);
+
+  const canUseLetter = (letter: string) => {
+    if (!selected) {
+      return false;
+    }
+    const nextIndex = typedWord.length;
+    const anchorForNext = hasAnchorInDraft
+      ? anchorIndex
+      : letter === selected.letter
+        ? typedWord.length
+        : typedWord.length + 1;
+    const position = getPositionForIndex(nextIndex, anchorForNext);
+    if (!position) {
+      return false;
+    }
+    if (letter === selected.letter && position.x === selected.x && position.y === selected.y) {
+      return true;
+    }
+    const boardLetter = boardTileMap.get(`${position.x},${position.y}`);
+    if (boardLetter) {
+      return boardLetter === letter;
+    }
+    const available = letterInventory.get(letter) ?? 0;
+    const used = draftUsage.get(letter) ?? 0;
+    return available > used;
+  };
+
+  const appendLetter = (letter: string) => {
+    if (!selected) {
+      return;
+    }
+    if (!canUseLetter(letter)) {
+      return;
+    }
+    setTypedWord((value) => value + letter.toLowerCase());
+  };
 
   useEffect(() => {
     if (anchorIndexes.length === 0) {
@@ -135,16 +230,12 @@ export default function BoardScene({
         return;
       }
       const next = event.key.toLowerCase();
-      const available = letterInventory.get(next) ?? 0;
-      if (available <= 0 && next !== selected?.letter) {
-        return;
-      }
-      setTypedWord((value) => value + next);
+      appendLetter(next);
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [anchorIndexes.length, letterInventory, selected, typedWord, wordStatus]);
+  }, [anchorIndexes.length, boardTileMap, letterInventory, selected, typedWord, wordStatus]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
@@ -198,9 +289,11 @@ export default function BoardScene({
     setSelected(tile);
     setTypedWord("");
     setAnchorOccurrence(0);
+    setDirectionMode("perpendicular");
     setWordStatus("idle");
     setPlaceStatus("idle");
     setPlaceMessage(null);
+    fetchTileInfo(tile, true);
   };
 
   useEffect(() => {
@@ -279,14 +372,21 @@ export default function BoardScene({
         if (boardResponse.ok) {
           const boardData = (await boardResponse.json()) as {
             tiles?: Array<Record<string, unknown>>;
+            latest_word_id?: number | null;
           };
           const nextTiles: Tile[] = (boardData.tiles ?? []).map((row) => ({
             x: Number(row.x ?? 0),
             y: Number(row.y ?? 0),
             letter: String(row.letter ?? ""),
             direction: row.direction === "vertical" ? "vertical" : "horizontal",
+            word_id: Number(row.word_id ?? 0),
           }));
           setBoardTiles(nextTiles);
+          tileInfoCache.current.clear();
+          if (boardData.latest_word_id) {
+            setHighlightWordId(boardData.latest_word_id);
+            window.setTimeout(() => setHighlightWordId(null), 3000);
+          }
         }
 
         if (typedWord.length > 0) {
@@ -294,7 +394,8 @@ export default function BoardScene({
           setSelected(null);
           setWordStatus("idle");
           setPlaceStatus("idle");
-          setPlaceMessage("Board updated. Draft cleared.");
+          setBoardNotice("Board updated. Draft cleared.");
+          window.setTimeout(() => setBoardNotice(null), 3000);
         }
       } catch (error) {
         return;
@@ -309,6 +410,43 @@ export default function BoardScene({
       }
     };
   }, [lastBoardUpdate, typedWord.length]);
+
+  const fetchTileInfo = async (tile: Tile, force?: boolean) => {
+    const key = `${tile.x},${tile.y}`;
+    const cached = tileInfoCache.current.get(key);
+    if (cached) {
+      setHoveredTile({ x: tile.x, y: tile.y, entries: cached });
+      return;
+    }
+    try {
+      const response = await fetch(`/api/board/tile?x=${tile.x}&y=${tile.y}`);
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as {
+        entries?: Array<{ word: string; username: string }>;
+      };
+      const entries = (data.entries ?? []).map((entry) => ({
+        word: String((entry as Record<string, unknown>).word ?? ""),
+        username: String((entry as Record<string, unknown>).username ?? ""),
+      }));
+      tileInfoCache.current.set(key, entries);
+      setHoveredTile({ x: tile.x, y: tile.y, entries });
+    } catch (error) {
+      return;
+    }
+  };
+
+  const handleHoverTile = async (tile: Tile) => {
+    if (window.matchMedia("(hover: none)").matches) {
+      return;
+    }
+    await fetchTileInfo(tile);
+  };
+
+  const handleLeaveTile = () => {
+    setHoveredTile(null);
+  };
 
   useEffect(() => {
     if (!loggedIn) {
@@ -421,7 +559,7 @@ export default function BoardScene({
           direction: placementDirection,
         }),
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as { error?: string; score?: number };
       if (!response.ok) {
         setPlaceStatus("error");
         setPlaceMessage(data?.error || "Unable to place word.");
@@ -429,6 +567,9 @@ export default function BoardScene({
       }
       setPlaceStatus("success");
       setPlaceMessage("Word placed.");
+      if (typeof data.score === "number") {
+        setScore((value) => value + data.score);
+      }
       setTypedWord("");
       setAnchorOccurrence(0);
       setWordStatus("idle");
@@ -451,6 +592,7 @@ export default function BoardScene({
       if (boardResponse.ok) {
         const boardData = (await boardResponse.json()) as {
           tiles?: Array<Record<string, unknown>>;
+          latest_word_id?: number | null;
         };
         const nextTiles: Tile[] = (boardData.tiles ?? []).map((row) => ({
           x: Number(row.x ?? 0),
@@ -458,8 +600,14 @@ export default function BoardScene({
           letter: String(row.letter ?? ""),
           direction:
             row.direction === "vertical" ? "vertical" : "horizontal",
+          word_id: Number(row.word_id ?? 0),
         }));
         setBoardTiles(nextTiles);
+        tileInfoCache.current.clear();
+        if (boardData.latest_word_id) {
+          setHighlightWordId(boardData.latest_word_id);
+          window.setTimeout(() => setHighlightWordId(null), 3000);
+        }
       }
     } catch (error) {
       setPlaceStatus("error");
@@ -536,10 +684,14 @@ export default function BoardScene({
               key={`${tile.x}-${tile.y}`}
               type="button"
               onClick={() => handleSelectTile(tile)}
+              onMouseEnter={() => handleHoverTile(tile)}
+              onMouseLeave={handleLeaveTile}
               data-tile
               className={`absolute flex h-12 w-12 items-center justify-center rounded-2xl border text-base font-semibold uppercase transition ${
                 selected?.x === tile.x && selected?.y === tile.y
                   ? "border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
+                  : highlightWordId && tile.word_id === highlightWordId
+                    ? "border-[#6fd3a5] bg-[#e7fff2] text-[#2f6b4f]"
                   : "border-black/10 bg-white text-[#241c15]"
               }`}
               style={{
@@ -553,6 +705,25 @@ export default function BoardScene({
               </span>
             </button>
           ))}
+          {hoveredTile ? (
+            <div
+              className="absolute rounded-2xl border border-black/10 bg-white/90 px-3 py-2 text-[10px] text-[#5a4d43] shadow-lg shadow-black/10"
+              style={{
+                left: PLANE_SIZE / 2 + hoveredTile.x * TILE_SIZE + 56,
+                top: PLANE_SIZE / 2 + hoveredTile.y * TILE_SIZE - 8,
+              }}
+            >
+              {hoveredTile.entries.length === 0 ? (
+                <div>No data</div>
+              ) : (
+                hoveredTile.entries.map((entry, index) => (
+                  <div key={`${entry.word}-${entry.username}-${index}`}>
+                    {entry.word} · {entry.username}
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -563,6 +734,13 @@ export default function BoardScene({
             : "Select a tile to start"}
         </div>
       </div>
+      {boardNotice ? (
+        <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center">
+          <div className="pointer-events-auto rounded-full border border-[#6fd3a5]/60 bg-[#e7fff2] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#2f6b4f] shadow-lg shadow-black/5">
+            {boardNotice}
+          </div>
+        </div>
+      ) : null}
 
       <div className="pointer-events-none absolute left-4 top-20 flex flex-col items-start gap-3 sm:left-6 sm:top-6">
         <a
@@ -655,6 +833,19 @@ export default function BoardScene({
             <path d="M18 12h3" />
           </svg>
         </button>
+        {selected ? (
+          <button
+            type="button"
+            onClick={() =>
+              setDirectionMode((value) =>
+                value === "perpendicular" ? "straight" : "perpendicular",
+              )
+            }
+            className="pointer-events-auto rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-lg shadow-black/5"
+          >
+            {directionMode === "perpendicular" ? "Straight" : "Cross"}
+          </button>
+        ) : null}
         {selected && anchorIndexes.length > 1 ? (
           <button
             type="button"
@@ -796,19 +987,16 @@ export default function BoardScene({
             {KEY_ROWS.map((row) => (
               <div key={row} className="flex justify-center gap-1">
                 {row.split("").map((letter) => {
-                  const available = letterInventory.get(letter) ?? 0;
                   const isAnchorLetter = selected?.letter === letter;
-                  const disabled =
-                    (!loggedIn || !selected || available <= 0) && !isAnchorLetter;
+                  const isEnabled = loggedIn && selected && canUseLetter(letter);
+                  const disabled = !isEnabled && !isAnchorLetter;
                   const letterScore = SCRABBLE_SCORES[letter] ?? 1;
                   return (
                     <button
                       key={letter}
                       type="button"
                       disabled={disabled}
-                      onClick={() =>
-                        setTypedWord((value) => value + letter.toLowerCase())
-                      }
+                      onClick={() => appendLetter(letter)}
                       className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold uppercase transition ${
                         disabled
                           ? "border border-black/5 bg-black/5 text-[#a38b7a]"
