@@ -39,6 +39,10 @@ export async function POST(request: Request) {
     if (payload.test) {
       return NextResponse.json({ success: true, test: true });
     }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("/api/award payload", payload);
+    }
     const telegramUserId = payload.telegram_user_id?.trim();
     const wordleDay = payload.wordle_day?.trim();
     const answer = payload.answer?.trim();
@@ -63,6 +67,9 @@ export async function POST(request: Request) {
     );
 
     if (!user?.id) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("/api/award user not found", telegramUserId);
+      }
       return NextResponse.json(
         { error: "User not connected." },
         { status: 404 },
@@ -75,6 +82,12 @@ export async function POST(request: Request) {
     });
 
     if (submissionResult.rows.length > 0) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("/api/award duplicate submission", {
+          user_id: user.id,
+          wordle_day: wordleDay,
+        });
+      }
       return NextResponse.json(
         { error: "Already submitted for this day." },
         { status: 409 },
@@ -83,6 +96,9 @@ export async function POST(request: Request) {
 
     const awarded = pickAwardLetter(answer, score);
     if (!awarded) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("/api/award unable to award", { answer, score });
+      }
       return NextResponse.json(
         { error: "Unable to award a letter." },
         { status: 422 },
@@ -107,6 +123,9 @@ export async function POST(request: Request) {
       score,
     });
   } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("/api/award error", error);
+    }
     const message =
       error instanceof Error ? error.message : "Unable to award a letter.";
     const safeMessage =
