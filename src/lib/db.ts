@@ -43,12 +43,22 @@ export const ensureSchema = async () => {
       args: [],
     },
     {
+      sql: `CREATE TABLE IF NOT EXISTS boards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      args: [],
+    },
+    {
       sql: `CREATE TABLE IF NOT EXISTS user_letters (
+        board_id INTEGER NOT NULL DEFAULT 1,
         user_id INTEGER NOT NULL,
         letter TEXT NOT NULL,
         quantity INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL,
-        PRIMARY KEY (user_id, letter),
+        PRIMARY KEY (board_id, user_id, letter),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
       )`,
       args: [],
@@ -56,13 +66,15 @@ export const ensureSchema = async () => {
     {
       sql: `CREATE TABLE IF NOT EXISTS wordle_submissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL DEFAULT 1,
         user_id INTEGER NOT NULL,
         wordle_day TEXT NOT NULL,
         answer TEXT NOT NULL,
         score INTEGER NOT NULL,
         created_at TEXT NOT NULL,
+        FOREIGN KEY (board_id) REFERENCES boards(id),
         FOREIGN KEY (user_id) REFERENCES users(id),
-        UNIQUE (user_id, wordle_day)
+        UNIQUE (board_id, user_id, wordle_day)
       )`,
       args: [],
     },
@@ -79,6 +91,7 @@ export const ensureSchema = async () => {
     {
       sql: `CREATE TABLE IF NOT EXISTS board_words (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL DEFAULT 1,
         word TEXT NOT NULL,
         start_x INTEGER NOT NULL,
         start_y INTEGER NOT NULL,
@@ -86,19 +99,22 @@ export const ensureSchema = async () => {
         placed_by INTEGER NOT NULL,
         placed_at TEXT NOT NULL,
         score INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (board_id) REFERENCES boards(id),
         FOREIGN KEY (placed_by) REFERENCES users(id)
       )`,
       args: [],
     },
     {
       sql: `CREATE TABLE IF NOT EXISTS board_tiles (
+        board_id INTEGER NOT NULL DEFAULT 1,
         x INTEGER NOT NULL,
         y INTEGER NOT NULL,
         letter TEXT NOT NULL,
         word_id INTEGER NOT NULL,
         placed_by INTEGER NOT NULL,
         placed_at TEXT NOT NULL,
-        PRIMARY KEY (x, y),
+        PRIMARY KEY (board_id, x, y),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
         FOREIGN KEY (word_id) REFERENCES board_words(id),
         FOREIGN KEY (placed_by) REFERENCES users(id)
       )`,
@@ -106,10 +122,12 @@ export const ensureSchema = async () => {
     },
     {
       sql: `CREATE TABLE IF NOT EXISTS board_word_tiles (
+        board_id INTEGER NOT NULL DEFAULT 1,
         word_id INTEGER NOT NULL,
         x INTEGER NOT NULL,
         y INTEGER NOT NULL,
-        PRIMARY KEY (word_id, x, y),
+        PRIMARY KEY (board_id, word_id, x, y),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
         FOREIGN KEY (word_id) REFERENCES board_words(id)
       )`,
       args: [],
@@ -117,7 +135,9 @@ export const ensureSchema = async () => {
     {
       sql: `CREATE TABLE IF NOT EXISTS board_archives (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        archived_at TEXT NOT NULL
+        board_id INTEGER NOT NULL DEFAULT 1,
+        archived_at TEXT NOT NULL,
+        FOREIGN KEY (board_id) REFERENCES boards(id)
       )`,
       args: [],
     },
@@ -132,19 +152,24 @@ export const ensureSchema = async () => {
     },
     {
       sql: `CREATE TABLE IF NOT EXISTS board_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
+        board_id INTEGER NOT NULL DEFAULT 1,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        PRIMARY KEY (board_id, key),
+        FOREIGN KEY (board_id) REFERENCES boards(id)
       )`,
       args: [],
     },
     {
       sql: `CREATE TABLE IF NOT EXISTS gifts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL DEFAULT 1,
         title TEXT NOT NULL,
         letters_json TEXT NOT NULL,
         available_at TEXT NOT NULL,
         expires_at TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (board_id) REFERENCES boards(id)
       )`,
       args: [],
     },
@@ -160,6 +185,20 @@ export const ensureSchema = async () => {
       args: [],
     },
   ]);
+
+  const boardsResult = await database.execute({
+    sql: "SELECT COUNT(*) as count FROM boards",
+    args: [],
+  });
+  const boardsCount = Number(
+    (boardsResult.rows[0] as Record<string, unknown> | undefined)?.count ?? 0,
+  );
+  if (boardsCount === 0) {
+    await database.execute({
+      sql: "INSERT INTO boards (name, created_at) VALUES (?, ?)",
+      args: ["Main Board", new Date().toISOString()],
+    });
+  }
 
   const tokenColumns = await database.execute({
     sql: "PRAGMA table_info(telegram_link_tokens)",
@@ -216,6 +255,202 @@ export const ensureSchema = async () => {
   if (!boardWordNames.has("score")) {
     await database.execute({
       sql: "ALTER TABLE board_words ADD COLUMN score INTEGER NOT NULL DEFAULT 0",
+      args: [],
+    });
+  }
+
+  if (!boardWordNames.has("board_id")) {
+    await database.execute({
+      sql: "ALTER TABLE board_words ADD COLUMN board_id INTEGER NOT NULL DEFAULT 1",
+      args: [],
+    });
+  }
+
+  const userLettersColumns = await database.execute({
+    sql: "PRAGMA table_info(user_letters)",
+    args: [],
+  });
+  const userLettersNames = new Set(
+    userLettersColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!userLettersNames.has("board_id")) {
+    await database.execute({
+      sql: `CREATE TABLE user_letters_v2 (
+        board_id INTEGER NOT NULL DEFAULT 1,
+        user_id INTEGER NOT NULL,
+        letter TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, user_id, letter),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    });
+    await database.execute({
+      sql: "INSERT INTO user_letters_v2 (board_id, user_id, letter, quantity, updated_at) SELECT 1, user_id, letter, quantity, updated_at FROM user_letters",
+      args: [],
+    });
+    await database.execute({ sql: "DROP TABLE user_letters", args: [] });
+    await database.execute({
+      sql: "ALTER TABLE user_letters_v2 RENAME TO user_letters",
+      args: [],
+    });
+  }
+
+  const submissionsColumns = await database.execute({
+    sql: "PRAGMA table_info(wordle_submissions)",
+    args: [],
+  });
+  const submissionsNames = new Set(
+    submissionsColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!submissionsNames.has("board_id")) {
+    await database.execute({
+      sql: `CREATE TABLE wordle_submissions_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL DEFAULT 1,
+        user_id INTEGER NOT NULL,
+        wordle_day TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE (board_id, user_id, wordle_day)
+      )`,
+      args: [],
+    });
+    await database.execute({
+      sql: "INSERT INTO wordle_submissions_v2 (id, board_id, user_id, wordle_day, answer, score, created_at) SELECT id, 1, user_id, wordle_day, answer, score, created_at FROM wordle_submissions",
+      args: [],
+    });
+    await database.execute({ sql: "DROP TABLE wordle_submissions", args: [] });
+    await database.execute({
+      sql: "ALTER TABLE wordle_submissions_v2 RENAME TO wordle_submissions",
+      args: [],
+    });
+  }
+
+  const boardTilesColumns = await database.execute({
+    sql: "PRAGMA table_info(board_tiles)",
+    args: [],
+  });
+  const boardTilesNames = new Set(
+    boardTilesColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!boardTilesNames.has("board_id")) {
+    await database.execute({
+      sql: `CREATE TABLE board_tiles_v2 (
+        board_id INTEGER NOT NULL DEFAULT 1,
+        x INTEGER NOT NULL,
+        y INTEGER NOT NULL,
+        letter TEXT NOT NULL,
+        word_id INTEGER NOT NULL,
+        placed_by INTEGER NOT NULL,
+        placed_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, x, y),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (word_id) REFERENCES board_words(id),
+        FOREIGN KEY (placed_by) REFERENCES users(id)
+      )`,
+      args: [],
+    });
+    await database.execute({
+      sql: "INSERT INTO board_tiles_v2 (board_id, x, y, letter, word_id, placed_by, placed_at) SELECT 1, x, y, letter, word_id, placed_by, placed_at FROM board_tiles",
+      args: [],
+    });
+    await database.execute({ sql: "DROP TABLE board_tiles", args: [] });
+    await database.execute({
+      sql: "ALTER TABLE board_tiles_v2 RENAME TO board_tiles",
+      args: [],
+    });
+  }
+
+  const boardWordTilesColumns = await database.execute({
+    sql: "PRAGMA table_info(board_word_tiles)",
+    args: [],
+  });
+  const boardWordTilesNames = new Set(
+    boardWordTilesColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!boardWordTilesNames.has("board_id")) {
+    await database.execute({
+      sql: `CREATE TABLE board_word_tiles_v2 (
+        board_id INTEGER NOT NULL DEFAULT 1,
+        word_id INTEGER NOT NULL,
+        x INTEGER NOT NULL,
+        y INTEGER NOT NULL,
+        PRIMARY KEY (board_id, word_id, x, y),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (word_id) REFERENCES board_words(id)
+      )`,
+      args: [],
+    });
+    await database.execute({
+      sql: "INSERT INTO board_word_tiles_v2 (board_id, word_id, x, y) SELECT 1, word_id, x, y FROM board_word_tiles",
+      args: [],
+    });
+    await database.execute({ sql: "DROP TABLE board_word_tiles", args: [] });
+    await database.execute({
+      sql: "ALTER TABLE board_word_tiles_v2 RENAME TO board_word_tiles",
+      args: [],
+    });
+  }
+
+  const boardMetaColumns = await database.execute({
+    sql: "PRAGMA table_info(board_meta)",
+    args: [],
+  });
+  const boardMetaNames = new Set(
+    boardMetaColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!boardMetaNames.has("board_id")) {
+    await database.execute({
+      sql: `CREATE TABLE board_meta_v2 (
+        board_id INTEGER NOT NULL DEFAULT 1,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        PRIMARY KEY (board_id, key),
+        FOREIGN KEY (board_id) REFERENCES boards(id)
+      )`,
+      args: [],
+    });
+    await database.execute({
+      sql: "INSERT INTO board_meta_v2 (board_id, key, value) SELECT 1, key, value FROM board_meta",
+      args: [],
+    });
+    await database.execute({ sql: "DROP TABLE board_meta", args: [] });
+    await database.execute({
+      sql: "ALTER TABLE board_meta_v2 RENAME TO board_meta",
+      args: [],
+    });
+  }
+
+  const boardArchivesColumns = await database.execute({
+    sql: "PRAGMA table_info(board_archives)",
+    args: [],
+  });
+  const boardArchivesNames = new Set(
+    boardArchivesColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!boardArchivesNames.has("board_id")) {
+    await database.execute({
+      sql: "ALTER TABLE board_archives ADD COLUMN board_id INTEGER NOT NULL DEFAULT 1",
+      args: [],
+    });
+  }
+
+  const giftsColumns = await database.execute({
+    sql: "PRAGMA table_info(gifts)",
+    args: [],
+  });
+  const giftsNames = new Set(
+    giftsColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!giftsNames.has("board_id")) {
+    await database.execute({
+      sql: "ALTER TABLE gifts ADD COLUMN board_id INTEGER NOT NULL DEFAULT 1",
       args: [],
     });
   }
