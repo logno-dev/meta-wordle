@@ -567,8 +567,9 @@ export default function BoardScene({
       }
       setPlaceStatus("success");
       setPlaceMessage("Word placed.");
-      if (typeof data.score === "number") {
-        setScore((value) => value + data.score);
+      const scoreDelta = typeof data.score === "number" ? data.score : 0;
+      if (scoreDelta > 0) {
+        setScore((value) => value + scoreDelta);
       }
       setTypedWord("");
       setAnchorOccurrence(0);
