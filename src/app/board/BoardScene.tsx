@@ -77,6 +77,7 @@ export default function BoardScene({
   >(null);
   const tileInfoCache = useRef(new Map<string, Array<{ word: string; username: string }>>());
   const [hasCentered, setHasCentered] = useState(false);
+  const lastLetterUpdateRef = useRef<string | null>(null);
 
   const letterInventory = useMemo(() => {
     const map = new Map<string, number>();
@@ -503,6 +504,27 @@ export default function BoardScene({
         setInventory(data.letters ?? []);
         if (typeof data.user?.total_score === "number") {
           setScore(data.user.total_score);
+        }
+        const newestUpdate = (data.letters ?? []).reduce<string | null>(
+          (latest, entry) => {
+            if (!entry.updated_at) {
+              return latest;
+            }
+            if (!latest || entry.updated_at > latest) {
+              return entry.updated_at;
+            }
+            return latest;
+          },
+          null,
+        );
+        if (newestUpdate && lastLetterUpdateRef.current) {
+          if (newestUpdate > lastLetterUpdateRef.current) {
+            setBoardNotice("New letters received.");
+            window.setTimeout(() => setBoardNotice(null), 3000);
+          }
+        }
+        if (newestUpdate) {
+          lastLetterUpdateRef.current = newestUpdate;
         }
       } catch (error) {
         return;

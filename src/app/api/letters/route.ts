@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeLetterRow, normalizeUserRow } from "@/lib/db-utils";
+import { BASE_INVENTORY } from "@/lib/letters";
 
 export async function GET(request: Request) {
   try {
@@ -57,10 +58,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
-    const lettersResult = await database.execute({
+    let lettersResult = await database.execute({
       sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE user_id = ? ORDER BY letter ASC",
       args: [user.id],
     });
+
+    if (lettersResult.rows.length === 0 && BASE_INVENTORY.length > 0) {
+      const createdAt = new Date().toISOString();
+      const statements = BASE_INVENTORY.map((entry) => ({
+        sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?)",
+        args: [user.id, entry.letter, entry.quantity, createdAt],
+      }));
+      await database.batch(statements);
+      lettersResult = await database.execute({
+        sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE user_id = ? ORDER BY letter ASC",
+        args: [user.id],
+      });
+    }
 
     const letters = lettersResult.rows
       .map((row) => normalizeLetterRow(row as Record<string, unknown>))

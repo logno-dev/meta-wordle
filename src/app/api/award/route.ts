@@ -8,6 +8,7 @@ type AwardPayload = {
   wordle_day?: string;
   answer?: string;
   score?: number | string;
+  test?: boolean;
 };
 
 const normalizeScore = (score: AwardPayload["score"]) => {
@@ -35,6 +36,9 @@ export async function POST(request: Request) {
     }
 
     const payload = (await request.json()) as AwardPayload;
+    if (payload.test) {
+      return NextResponse.json({ success: true, test: true });
+    }
     const telegramUserId = payload.telegram_user_id?.trim();
     const wordleDay = payload.wordle_day?.trim();
     const answer = payload.answer?.trim();
