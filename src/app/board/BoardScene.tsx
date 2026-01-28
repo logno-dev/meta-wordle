@@ -14,6 +14,7 @@ type Tile = {
 type LetterEntry = {
   letter: string;
   quantity: number;
+  updated_at?: string | null;
 };
 
 type BoardSceneProps = {
