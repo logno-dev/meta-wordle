@@ -13,17 +13,17 @@ export async function GET(request: Request) {
     const database = db();
 
     const wordsResult = await database.execute({
-      sql: "SELECT board_words.id, board_words.word, board_words.start_x, board_words.start_y, board_words.direction, board_words.placed_by, board_words.placed_at, board_words.score, users.username FROM board_words JOIN users ON board_words.placed_by = users.id ORDER BY board_words.id DESC LIMIT ?",
+      sql: "SELECT board_words.id, board_words.word, board_words.start_x, board_words.start_y, board_words.direction, board_words.placed_by, board_words.placed_at, board_words.score, users.username FROM board_words JOIN users ON board_words.placed_by = users.id WHERE board_words.board_id = 1 ORDER BY board_words.id DESC LIMIT ?",
       args: [limit],
     });
 
     const tilesResult = await database.execute({
-      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_tiles.word_id, board_tiles.placed_by, board_tiles.placed_at, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id ORDER BY board_tiles.placed_at DESC LIMIT ?",
+      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_tiles.word_id, board_tiles.placed_by, board_tiles.placed_at, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.board_id = 1 ORDER BY board_tiles.placed_at DESC LIMIT ?",
       args: [limit * 5],
     });
 
     const latestResult = await database.execute({
-      sql: "SELECT id FROM board_words ORDER BY id DESC LIMIT 1",
+      sql: "SELECT id FROM board_words WHERE board_id = 1 ORDER BY id DESC LIMIT 1",
       args: [],
     });
     const latestWordId = Number(

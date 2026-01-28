@@ -40,7 +40,7 @@ export const seedBoardIfEmpty = async () => {
   const direction = "horizontal";
 
   await database.execute({
-    sql: "INSERT INTO board_words (word, start_x, start_y, direction, placed_by, placed_at) VALUES (?, ?, ?, ?, ?, ?)",
+    sql: "INSERT INTO board_words (board_id, word, start_x, start_y, direction, placed_by, placed_at) VALUES (1, ?, ?, ?, ?, ?, ?)",
     args: [word, startX, startY, direction, systemUserId, placedAt],
   });
   const wordIdResult = await database.execute({
@@ -55,11 +55,11 @@ export const seedBoardIfEmpty = async () => {
   }
 
   const tileStatements = word.split("").map((letter, index) => ({
-    sql: "INSERT INTO board_tiles (x, y, letter, word_id, placed_by, placed_at) VALUES (?, ?, ?, ?, ?, ?)",
+    sql: "INSERT INTO board_tiles (board_id, x, y, letter, word_id, placed_by, placed_at) VALUES (1, ?, ?, ?, ?, ?, ?)",
     args: [startX + index, startY, letter, wordId, systemUserId, placedAt],
   }));
   const wordTileStatements = word.split("").map((_, index) => ({
-    sql: "INSERT INTO board_word_tiles (word_id, x, y) VALUES (?, ?, ?)",
+    sql: "INSERT INTO board_word_tiles (board_id, word_id, x, y) VALUES (1, ?, ?, ?)",
     args: [wordId, startX + index, startY],
   }));
   await database.batch([...tileStatements, ...wordTileStatements]);

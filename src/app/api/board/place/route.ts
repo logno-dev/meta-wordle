@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     }
 
     const existingCountResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM board_tiles",
+      sql: "SELECT COUNT(*) as count FROM board_tiles WHERE board_id = 1",
       args: [],
     });
     const existingCount = Number(
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
     );
 
     const neighborResult = await database.execute({
-      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.x BETWEEN ? AND ? AND board_tiles.y BETWEEN ? AND ?",
+      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.board_id = 1 AND board_tiles.x BETWEEN ? AND ? AND board_tiles.y BETWEEN ? AND ?",
       args: [minX - 1, maxX + 1, minY - 1, maxY + 1],
     });
     const neighborTiles = neighborResult.rows.map((row) => ({
@@ -198,7 +198,7 @@ export async function POST(request: Request) {
     const placeholders = lettersNeeded.map(() => "?").join(",");
     const inventoryResult = lettersNeeded.length
       ? await database.execute({
-          sql: `SELECT letter, quantity FROM user_letters WHERE user_id = ? AND letter IN (${placeholders})`,
+          sql: `SELECT letter, quantity FROM user_letters WHERE board_id = 1 AND user_id = ? AND letter IN (${placeholders})`,
           args: [userId, ...lettersNeeded],
         })
       : { rows: [] };
@@ -225,7 +225,7 @@ export async function POST(request: Request) {
     const rewardCount = score >= 18 ? 2 : score >= 10 ? 1 : 0;
     const rewardLetters = rewardCount > 0 ? pickRewardLetters(rewardCount) : [];
     await database.execute({
-      sql: "INSERT INTO board_words (word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO board_words (board_id, word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
       args: [word, startX, startY, direction, userId, placedAt, score],
     });
 
@@ -244,27 +244,27 @@ export async function POST(request: Request) {
     }
 
     const statements = newTiles.map((tile) => ({
-      sql: "INSERT INTO board_tiles (x, y, letter, word_id, placed_by, placed_at) VALUES (?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO board_tiles (board_id, x, y, letter, word_id, placed_by, placed_at) VALUES (1, ?, ?, ?, ?, ?, ?)",
       args: [tile.x, tile.y, tile.letter, wordId, userId, placedAt],
     }));
 
     for (const pos of positions) {
       statements.push({
-        sql: "INSERT INTO board_word_tiles (word_id, x, y) VALUES (?, ?, ?)",
+        sql: "INSERT INTO board_word_tiles (board_id, word_id, x, y) VALUES (1, ?, ?, ?)",
         args: [wordId, pos.x, pos.y],
       });
     }
 
     for (const [letter, count] of letterCounts.entries()) {
       statements.push({
-        sql: "UPDATE user_letters SET quantity = quantity - ?, updated_at = ? WHERE user_id = ? AND letter = ?",
+        sql: "UPDATE user_letters SET quantity = quantity - ?, updated_at = ? WHERE board_id = 1 AND user_id = ? AND letter = ?",
         args: [count, placedAt, userId, letter],
       });
     }
 
     for (const letter of rewardLetters) {
       statements.push({
-        sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, 1, ?) ON CONFLICT(user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
         args: [userId, letter, placedAt],
       });
     }

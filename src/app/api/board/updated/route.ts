@@ -3,7 +3,7 @@ import { getBoardUpdated } from "@/lib/board-meta";
 
 export async function GET() {
   try {
-    const updatedAt = await getBoardUpdated();
+    const updatedAt = await getBoardUpdated(1);
     return NextResponse.json({ updated_at: updatedAt });
   } catch (error) {
     const message =

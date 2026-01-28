@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
     const createdAt = new Date().toISOString();
     await database.execute({
-      sql: "INSERT INTO gifts (title, letters_json, available_at, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+      sql: "INSERT INTO gifts (board_id, title, letters_json, available_at, expires_at, created_at) VALUES (1, ?, ?, ?, ?, ?)",
       args: [
         title,
         JSON.stringify(entries),

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     const archivedAt = new Date().toISOString();
     await database.execute({
-      sql: "INSERT INTO board_archives (archived_at) VALUES (?)",
+      sql: "INSERT INTO board_archives (board_id, archived_at) VALUES (1, ?)",
       args: [archivedAt],
     });
     const archiveResult = await database.execute({
@@ -61,9 +61,9 @@ export async function POST(request: Request) {
 
     await database.batch([
       ...scoreStatements,
-      { sql: "DELETE FROM board_word_tiles", args: [] },
-      { sql: "DELETE FROM board_tiles", args: [] },
-      { sql: "DELETE FROM board_words", args: [] },
+      { sql: "DELETE FROM board_word_tiles WHERE board_id = 1", args: [] },
+      { sql: "DELETE FROM board_tiles WHERE board_id = 1", args: [] },
+      { sql: "DELETE FROM board_words WHERE board_id = 1", args: [] },
       { sql: "UPDATE users SET total_score = 0", args: [] },
     ]);
     await setBoardUpdated(archivedAt);

@@ -59,19 +59,19 @@ export async function GET(request: Request) {
     }
 
     let lettersResult = await database.execute({
-      sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE user_id = ? ORDER BY letter ASC",
+      sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE board_id = 1 AND user_id = ? ORDER BY letter ASC",
       args: [user.id],
     });
 
     if (lettersResult.rows.length === 0 && BASE_INVENTORY.length > 0) {
       const createdAt = new Date().toISOString();
       const statements = BASE_INVENTORY.map((entry) => ({
-        sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?)",
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?)",
         args: [user.id, entry.letter, entry.quantity, createdAt],
       }));
       await database.batch(statements);
       lettersResult = await database.execute({
-        sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE user_id = ? ORDER BY letter ASC",
+        sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE board_id = 1 AND user_id = ? ORDER BY letter ASC",
         args: [user.id],
       });
     }

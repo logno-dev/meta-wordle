@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     }
 
     const submissionResult = await database.execute({
-      sql: "SELECT id FROM wordle_submissions WHERE user_id = ? AND wordle_day = ?",
+      sql: "SELECT id FROM wordle_submissions WHERE board_id = 1 AND user_id = ? AND wordle_day = ?",
       args: [user.id, wordleDay],
     });
 
@@ -108,11 +108,11 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     await database.batch([
       {
-        sql: "INSERT INTO wordle_submissions (user_id, wordle_day, answer, score, created_at) VALUES (?, ?, ?, ?, ?)",
+        sql: "INSERT INTO wordle_submissions (board_id, user_id, wordle_day, answer, score, created_at) VALUES (1, ?, ?, ?, ?, ?)",
         args: [user.id, wordleDay, answer, score, now],
       },
       {
-        sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, 1, ?) ON CONFLICT(user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
         args: [user.id, awarded, now],
       },
     ]);

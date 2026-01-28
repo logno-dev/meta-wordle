@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
     const updatedAt = new Date().toISOString();
     const statements = letters.map((entry) => ({
-      sql: "INSERT INTO user_letters (user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
+      sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
       args: [user.id, entry.letter, entry.quantity, updatedAt],
     }));
     await database.batch([

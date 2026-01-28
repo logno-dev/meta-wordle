@@ -75,7 +75,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
   }
 
   const tilesResult = await database.execute({
-    sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_tiles.word_id, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id",
+    sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_tiles.word_id, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.board_id = 1",
     args: [],
   });
   tiles = tilesResult.rows.map((row) => {
