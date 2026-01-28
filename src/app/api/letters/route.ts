@@ -26,8 +26,8 @@ export async function GET(request: Request) {
 
       const userResult = await database.execute({
         sql: telegramUserId
-          ? "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE telegram_user_id = ?"
-          : "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
+          ? "SELECT id, username, password_hash, telegram_user_id, created_at, total_score FROM users WHERE telegram_user_id = ?"
+          : "SELECT id, username, password_hash, telegram_user_id, created_at, total_score FROM users WHERE username = ?",
         args: [lookupValue],
       });
 
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       }
 
       const sessionResult = await database.execute({
-        sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
+        sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at, users.total_score FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
         args: [sessionToken, new Date().toISOString()],
       });
 
