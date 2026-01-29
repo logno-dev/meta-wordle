@@ -222,7 +222,7 @@ export async function POST(request: Request) {
 
     const placedAt = new Date().toISOString();
     const score = calculateScore(word);
-    const rewardCount = score >= 18 ? 2 : score >= 10 ? 1 : 0;
+    const rewardCount = score >= 18 ? 5 : score >= 10 ? 3 : 1;
     const rewardLetters = rewardCount > 0 ? pickRewardLetters(rewardCount) : [];
     await database.execute({
       sql: "INSERT INTO board_words (board_id, word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
