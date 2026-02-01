@@ -28,7 +28,7 @@ const TILE_SIZE = 56;
 const PLANE_SIZE = 4200;
 const KEYBOARD_ESTIMATE = 260;
 const MIN_SCALE = 0.3;
-const MAX_SCALE = 2.5;
+const MAX_SCALE = 1.5;
 
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 
@@ -70,6 +70,7 @@ export default function BoardScene({
     startDistance: number;
     startScale: number;
     startOffset: { x: number; y: number };
+    startCenter: { x: number; y: number };
   } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
@@ -345,10 +346,16 @@ export default function BoardScene({
       const points = Array.from(activePointersRef.current.values());
       const dx = points[0].x - points[1].x;
       const dy = points[0].y - points[1].y;
+      const rect = containerRef.current.getBoundingClientRect();
+      const center = {
+        x: (points[0].x + points[1].x) / 2 - rect.left,
+        y: (points[0].y + points[1].y) / 2 - rect.top,
+      };
       pinchRef.current = {
         startDistance: Math.hypot(dx, dy),
         startScale: scale,
         startOffset: offset,
+        startCenter: center,
       };
     }
   };
@@ -376,8 +383,8 @@ export default function BoardScene({
         y: (points[0].y + points[1].y) / 2 - rect.top,
       };
       const world = {
-        x: (center.x - pinchRef.current.startOffset.x) / pinchRef.current.startScale,
-        y: (center.y - pinchRef.current.startOffset.y) / pinchRef.current.startScale,
+        x: (pinchRef.current.startCenter.x - pinchRef.current.startOffset.x) / pinchRef.current.startScale,
+        y: (pinchRef.current.startCenter.y - pinchRef.current.startOffset.y) / pinchRef.current.startScale,
       };
       setScale(nextScale);
       setOffset({
@@ -932,8 +939,8 @@ export default function BoardScene({
           {directionHint ? (
             <div
               className={`direction-hint pointer-events-none absolute z-30 flex h-8 w-8 items-center justify-center text-[#d76f4b] ${directionHint.direction === "horizontal"
-                  ? "direction-hint-horizontal"
-                  : "direction-hint-vertical"
+                ? "direction-hint-horizontal"
+                : "direction-hint-vertical"
                 }`}
               style={{
                 left:
@@ -986,10 +993,10 @@ export default function BoardScene({
               onMouseLeave={handleLeaveTile}
               data-tile
               className={`absolute flex h-12 w-12 items-center justify-center rounded-2xl border text-base font-semibold uppercase transition ${selected?.x === tile.x && selected?.y === tile.y
-                  ? "border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
-                  : highlightWordId && tile.word_id === highlightWordId
-                    ? "border-[#6fd3a5] bg-[#e7fff2] text-[#2f6b4f]"
-                    : "border-black/10 bg-white text-[#241c15]"
+                ? "border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
+                : highlightWordId && tile.word_id === highlightWordId
+                  ? "border-[#6fd3a5] bg-[#e7fff2] text-[#2f6b4f]"
+                  : "border-black/10 bg-white text-[#241c15]"
                 }`}
               style={{
                 left: PLANE_SIZE / 2 + tile.x * TILE_SIZE,
@@ -1042,8 +1049,8 @@ export default function BoardScene({
         <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center">
           <div
             className={`pointer-events-auto rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/5 ${placeStatus === "error"
-                ? "border-[#d76f4b]/60 bg-[#fff1e7] text-[#b45231]"
-                : "border-[#6fd3a5]/60 bg-[#e7fff2] text-[#2f6b4f]"
+              ? "border-[#d76f4b]/60 bg-[#fff1e7] text-[#b45231]"
+              : "border-[#6fd3a5]/60 bg-[#e7fff2] text-[#2f6b4f]"
               }`}
           >
             {placeMessage}
@@ -1306,10 +1313,10 @@ export default function BoardScene({
                       disabled={disabled}
                       onClick={() => appendLetter(letter)}
                       className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold uppercase transition ${disabled
-                          ? "border border-black/5 bg-black/5 text-[#a38b7a]"
-                          : isAnchorLetter
-                            ? "border border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
-                            : "border border-black/10 bg-white text-[#241c15] hover:border-[#d76f4b]"
+                        ? "border border-black/5 bg-black/5 text-[#a38b7a]"
+                        : isAnchorLetter
+                          ? "border border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
+                          : "border border-black/10 bg-white text-[#241c15] hover:border-[#d76f4b]"
                         }`}
                     >
                       {letter}
