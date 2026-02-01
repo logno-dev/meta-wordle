@@ -261,6 +261,10 @@ export async function POST(request: Request) {
         sql: "UPDATE user_letters SET quantity = quantity - ?, updated_at = ? WHERE board_id = 1 AND user_id = ? AND letter = ?",
         args: [count, placedAt, userId, letter],
       });
+      statements.push({
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
+        args: [userId, letter, -count, "spend", String(wordId), ledgerLabel, placedAt],
+      });
     }
 
     for (const letter of rewardLetters) {

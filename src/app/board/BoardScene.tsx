@@ -1566,7 +1566,7 @@ export default function BoardScene({
                   >
                     <div>
                       <div className="text-[11px] font-semibold uppercase text-[#241c15]">
-                        {entry.letter} x{entry.quantity}
+                        {entry.letter} {entry.quantity >= 0 ? "+" : ""}{entry.quantity}
                       </div>
                       <div className="text-[10px] text-[#6b4b3d]">
                         {entry.source_label || entry.source}
