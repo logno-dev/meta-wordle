@@ -27,7 +27,7 @@ type BoardSceneProps = {
 const TILE_SIZE = 56;
 const PLANE_SIZE = 4200;
 const KEYBOARD_ESTIMATE = 260;
-const MIN_SCALE = 0.6;
+const MIN_SCALE = 0.7;
 const MAX_SCALE = 2.5;
 
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
@@ -324,10 +324,6 @@ export default function BoardScene({
   }, [anchorIndexes.length, boardTileMap, letterInventory, selected, typedWord, wordStatus]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest("button[data-tile]")) {
-      return;
-    }
     dragMovedRef.current = false;
     activePointersRef.current.set(event.pointerId, {
       x: event.clientX,
@@ -506,6 +502,9 @@ export default function BoardScene({
   };
 
   const handleSelectTile = (tile: Tile) => {
+    if (dragMovedRef.current) {
+      return;
+    }
     if (selected && selected.x === tile.x && selected.y === tile.y) {
       toggleDirection(tile);
       return;
