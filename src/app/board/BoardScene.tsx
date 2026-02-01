@@ -27,7 +27,7 @@ type BoardSceneProps = {
 const TILE_SIZE = 56;
 const PLANE_SIZE = 4200;
 const KEYBOARD_ESTIMATE = 260;
-const MIN_SCALE = 0.7;
+const MIN_SCALE = 0.3;
 const MAX_SCALE = 2.5;
 
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
@@ -921,9 +921,8 @@ export default function BoardScene({
           style={{
             width: PLANE_SIZE,
             height: PLANE_SIZE,
-            transform: `translate(${offset.x - PLANE_SIZE / 2}px, ${
-              offset.y - PLANE_SIZE / 2
-            }px) scale(${scale})`,
+            transform: `translate(${offset.x - PLANE_SIZE / 2}px, ${offset.y - PLANE_SIZE / 2
+              }px) scale(${scale})`,
             transformOrigin: "center center",
             backgroundSize: `${TILE_SIZE}px ${TILE_SIZE}px`,
             backgroundImage:
@@ -932,11 +931,10 @@ export default function BoardScene({
         >
           {directionHint ? (
             <div
-              className={`direction-hint pointer-events-none absolute z-30 flex h-8 w-8 items-center justify-center text-[#d76f4b] ${
-                directionHint.direction === "horizontal"
+              className={`direction-hint pointer-events-none absolute z-30 flex h-8 w-8 items-center justify-center text-[#d76f4b] ${directionHint.direction === "horizontal"
                   ? "direction-hint-horizontal"
                   : "direction-hint-vertical"
-              }`}
+                }`}
               style={{
                 left:
                   PLANE_SIZE / 2 +
@@ -987,13 +985,12 @@ export default function BoardScene({
               onMouseEnter={() => handleHoverTile(tile)}
               onMouseLeave={handleLeaveTile}
               data-tile
-              className={`absolute flex h-12 w-12 items-center justify-center rounded-2xl border text-base font-semibold uppercase transition ${
-                selected?.x === tile.x && selected?.y === tile.y
+              className={`absolute flex h-12 w-12 items-center justify-center rounded-2xl border text-base font-semibold uppercase transition ${selected?.x === tile.x && selected?.y === tile.y
                   ? "border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
                   : highlightWordId && tile.word_id === highlightWordId
                     ? "border-[#6fd3a5] bg-[#e7fff2] text-[#2f6b4f]"
-                  : "border-black/10 bg-white text-[#241c15]"
-              }`}
+                    : "border-black/10 bg-white text-[#241c15]"
+                }`}
               style={{
                 left: PLANE_SIZE / 2 + tile.x * TILE_SIZE,
                 top: PLANE_SIZE / 2 + tile.y * TILE_SIZE,
@@ -1044,11 +1041,10 @@ export default function BoardScene({
       {placeMessage ? (
         <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center">
           <div
-            className={`pointer-events-auto rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/5 ${
-              placeStatus === "error"
+            className={`pointer-events-auto rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/5 ${placeStatus === "error"
                 ? "border-[#d76f4b]/60 bg-[#fff1e7] text-[#b45231]"
                 : "border-[#6fd3a5]/60 bg-[#e7fff2] text-[#2f6b4f]"
-            }`}
+              }`}
           >
             {placeMessage}
           </div>
@@ -1309,13 +1305,12 @@ export default function BoardScene({
                       type="button"
                       disabled={disabled}
                       onClick={() => appendLetter(letter)}
-                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold uppercase transition ${
-                        disabled
+                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold uppercase transition ${disabled
                           ? "border border-black/5 bg-black/5 text-[#a38b7a]"
                           : isAnchorLetter
                             ? "border border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
                             : "border border-black/10 bg-white text-[#241c15] hover:border-[#d76f4b]"
-                      }`}
+                        }`}
                     >
                       {letter}
                       {availableCount > 0 ? (
