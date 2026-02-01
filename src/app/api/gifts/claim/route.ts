@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
     const giftResult = await database.execute({
-      sql: "SELECT id, letters_json, available_at, expires_at FROM gifts WHERE id = ?",
+      sql: "SELECT id, title, letters_json, available_at, expires_at FROM gifts WHERE id = ?",
       args: [giftId],
     });
     const giftRow = giftResult.rows[0] as Record<string, unknown> | undefined;
@@ -77,10 +77,17 @@ export async function POST(request: Request) {
     }
 
     const updatedAt = new Date().toISOString();
-    const statements = letters.map((entry) => ({
-      sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
-      args: [user.id, entry.letter, entry.quantity, updatedAt],
-    }));
+    const giftTitle = String(giftRow.title ?? "Gift");
+    const statements = letters.flatMap((entry) => [
+      {
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
+        args: [user.id, entry.letter, entry.quantity, updatedAt],
+      },
+      {
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
+        args: [user.id, entry.letter, entry.quantity, "gift", String(giftId), giftTitle, updatedAt],
+      },
+    ]);
     await database.batch([
       { sql: "INSERT INTO gift_claims (gift_id, user_id, claimed_at) VALUES (?, ?, ?)", args: [giftId, user.id, updatedAt] },
       ...statements,

@@ -66,6 +66,7 @@ export default function BoardScene({
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const dragMovedRef = useRef(false);
   const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pointerDownTileRef = useRef<{ x: number; y: number } | null>(null);
   const pinchRef = useRef<{
     startDistance: number;
     startScale: number;
@@ -85,6 +86,22 @@ export default function BoardScene({
   const [giftStatus, setGiftStatus] = useState<"idle" | "loading" | "error">(
     "idle",
   );
+  const [ledgerEntries, setLedgerEntries] = useState<
+    Array<{
+      letter: string;
+      quantity: number;
+      source: string;
+      source_id: string | null;
+      source_label: string | null;
+      created_at: string;
+    }>
+  >([]);
+  const [ledgerStatus, setLedgerStatus] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
+  const [inventoryView, setInventoryView] = useState<"inventory" | "ledger">(
+    "inventory",
+  );
   const [lastBoardUpdate, setLastBoardUpdate] = useState<string | null>(null);
   const [highlightWordId, setHighlightWordId] = useState<number | null>(null);
   const [boardNotice, setBoardNotice] = useState<string | null>(null);
@@ -96,6 +113,7 @@ export default function BoardScene({
   const [hasCentered, setHasCentered] = useState(false);
   const lastLetterUpdateRef = useRef<string | null>(null);
   const lastInventoryTotalRef = useRef<number | null>(null);
+  const skipNextBoardClickRef = useRef(false);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -128,6 +146,14 @@ export default function BoardScene({
     const map = new Map<string, string>();
     boardTiles.forEach((tile) => {
       map.set(`${tile.x},${tile.y}`, tile.letter);
+    });
+    return map;
+  }, [boardTiles]);
+
+  const boardTileLookup = useMemo(() => {
+    const map = new Map<string, Tile>();
+    boardTiles.forEach((tile) => {
+      map.set(`${tile.x},${tile.y}`, tile);
     });
     return map;
   }, [boardTiles]);
@@ -347,6 +373,17 @@ export default function BoardScene({
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     dragMovedRef.current = false;
+    const target = event.target as HTMLElement | null;
+    const tileButton = target?.closest("button[data-tile]") as HTMLButtonElement | null;
+    if (tileButton) {
+      const x = Number(tileButton.dataset.x ?? "");
+      const y = Number(tileButton.dataset.y ?? "");
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        pointerDownTileRef.current = { x, y };
+      }
+    } else {
+      pointerDownTileRef.current = null;
+    }
     activePointersRef.current.set(event.pointerId, {
       x: event.clientX,
       y: event.clientY,
@@ -445,6 +482,15 @@ export default function BoardScene({
       setDragging(false);
       lastPointerRef.current = null;
     }
+    if (!dragMovedRef.current && pointerDownTileRef.current) {
+      const { x, y } = pointerDownTileRef.current;
+      const tile = boardTileLookup.get(`${x},${y}`);
+      if (tile) {
+        skipNextBoardClickRef.current = true;
+        handleSelectTile(tile);
+      }
+    }
+    pointerDownTileRef.current = null;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
   };
 
@@ -453,6 +499,7 @@ export default function BoardScene({
     pinchRef.current = null;
     setDragging(false);
     lastPointerRef.current = null;
+    pointerDownTileRef.current = null;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
   };
 
@@ -480,6 +527,10 @@ export default function BoardScene({
   };
 
   const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (skipNextBoardClickRef.current) {
+      skipNextBoardClickRef.current = false;
+      return;
+    }
     if (dragMovedRef.current) {
       return;
     }
@@ -585,6 +636,42 @@ export default function BoardScene({
       setGiftStatus("idle");
     } catch (error) {
       setGiftStatus("error");
+    }
+  };
+
+  const loadLedger = async () => {
+    if (!loggedIn) {
+      return;
+    }
+    setLedgerStatus("loading");
+    try {
+      const response = await fetch("/api/letters/ledger?limit=80");
+      const data = (await response.json()) as {
+        entries?: Array<{
+          letter: string;
+          quantity: number;
+          source: string;
+          source_id?: string | null;
+          source_label?: string | null;
+          created_at: string;
+        }>;
+      };
+      if (!response.ok) {
+        setLedgerStatus("error");
+        return;
+      }
+      const nextEntries = (data.entries ?? []).map((entry) => ({
+        letter: entry.letter,
+        quantity: entry.quantity,
+        source: entry.source,
+        source_id: entry.source_id ?? null,
+        source_label: entry.source_label ?? null,
+        created_at: entry.created_at,
+      }));
+      setLedgerEntries(nextEntries);
+      setLedgerStatus("idle");
+    } catch (error) {
+      setLedgerStatus("error");
     }
   };
 
@@ -760,11 +847,14 @@ export default function BoardScene({
 
     if (showInventory) {
       refreshInventory();
+      if (inventoryView === "ledger") {
+        loadLedger();
+      }
       return;
     }
 
     refreshInventory();
-  }, [loggedIn, showInventory]);
+  }, [loggedIn, showInventory, inventoryView]);
 
   const ghostTiles = useMemo(() => {
     if (!selected || typedWord.length === 0) {
@@ -1013,6 +1103,8 @@ export default function BoardScene({
               onMouseEnter={() => handleHoverTile(tile)}
               onMouseLeave={handleLeaveTile}
               data-tile
+              data-x={tile.x}
+              data-y={tile.y}
               className={`absolute flex h-12 w-12 items-center justify-center rounded-2xl border text-base font-semibold uppercase transition ${selected?.x === tile.x && selected?.y === tile.y
                 ? "border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
                 : highlightWordId && tile.word_id === highlightWordId
@@ -1411,33 +1503,82 @@ export default function BoardScene({
       {showInventory ? (
         <div className="pointer-events-none fixed inset-0 flex items-center justify-center px-4">
           <div className="pointer-events-auto w-[min(720px,92vw)] rounded-3xl border border-black/10 bg-white/95 p-4 text-xs text-[#5a4d43] shadow-2xl shadow-black/10">
-            <div className="flex items-center justify-between font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
-              <span>Inventory</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+                <button
+                  type="button"
+                  onClick={() => setInventoryView("inventory")}
+                  className={`rounded-full px-3 py-1 transition ${inventoryView === "inventory"
+                    ? "bg-[#fff1e7] text-[#b45231]"
+                    : "text-[#6b4b3d]"
+                    }`}
+                >
+                  Inventory
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInventoryView("ledger")}
+                  className={`rounded-full px-3 py-1 transition ${inventoryView === "ledger"
+                    ? "bg-[#fff1e7] text-[#b45231]"
+                    : "text-[#6b4b3d]"
+                    }`}
+                >
+                  Ledger
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowInventory(false)}
-                className="text-[10px] text-[#a38b7a]"
+                className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a38b7a]"
               >
                 Close
               </button>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {inventory.filter((entry) => entry.quantity > 0).length === 0 ? (
-                <div>No letters yet.</div>
-              ) : (
-                inventory
-                  .filter((entry) => entry.quantity > 0)
-                  .map((entry) => (
-                    <div
-                      key={entry.letter}
-                      className="flex h-9 items-center gap-2 rounded-2xl border border-black/5 bg-[#fff7ef] px-3 text-xs font-semibold uppercase text-[#241c15]"
-                    >
-                      <span>{entry.letter}</span>
-                      <span className="text-[10px] text-[#6b4b3d]">x{entry.quantity}</span>
+            {inventoryView === "inventory" ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {inventory.filter((entry) => entry.quantity > 0).length === 0 ? (
+                  <div>No letters yet.</div>
+                ) : (
+                  inventory
+                    .filter((entry) => entry.quantity > 0)
+                    .map((entry) => (
+                      <div
+                        key={entry.letter}
+                        className="flex h-9 items-center gap-2 rounded-2xl border border-black/5 bg-[#fff7ef] px-3 text-xs font-semibold uppercase text-[#241c15]"
+                      >
+                        <span>{entry.letter}</span>
+                        <span className="text-[10px] text-[#6b4b3d]">x{entry.quantity}</span>
+                      </div>
+                    ))
+                )}
+              </div>
+            ) : (
+              <div className="mt-3 max-h-[320px] space-y-2 overflow-auto pr-1">
+                {ledgerStatus === "loading" ? <div>Loading ledger...</div> : null}
+                {ledgerStatus === "error" ? <div>Unable to load ledger.</div> : null}
+                {ledgerStatus === "idle" && ledgerEntries.length === 0 ? (
+                  <div>No ledger entries yet.</div>
+                ) : null}
+                {ledgerEntries.map((entry, index) => (
+                  <div
+                    key={`${entry.created_at}-${entry.letter}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-[#fff7ef] px-3 py-2"
+                  >
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase text-[#241c15]">
+                        {entry.letter} x{entry.quantity}
+                      </div>
+                      <div className="text-[10px] text-[#6b4b3d]">
+                        {entry.source_label || entry.source}
+                      </div>
                     </div>
-                  ))
-              )}
-            </div>
+                    <div className="text-[10px] text-[#a38b7a]">
+                      {entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

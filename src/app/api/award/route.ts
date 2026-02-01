@@ -106,6 +106,7 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
+    const ledgerLabel = `Wordle ${wordleDay}${answer ? ` (${answer.toUpperCase()})` : ""}`;
     await database.batch([
       {
         sql: "INSERT INTO wordle_submissions (board_id, user_id, wordle_day, answer, score, created_at) VALUES (1, ?, ?, ?, ?, ?)",
@@ -114,6 +115,10 @@ export async function POST(request: Request) {
       {
         sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
         args: [user.id, awarded, now],
+      },
+      {
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, 1, ?, ?, ?, ?)",
+        args: [user.id, awarded, "wordle", wordleDay, ledgerLabel, now],
       },
     ]);
 

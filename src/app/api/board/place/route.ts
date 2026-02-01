@@ -224,6 +224,7 @@ export async function POST(request: Request) {
     const score = calculateScore(word);
     const rewardCount = score >= 18 ? 5 : score >= 10 ? 3 : 1;
     const rewardLetters = rewardCount > 0 ? pickRewardLetters(rewardCount) : [];
+    const ledgerLabel = `Placed ${word.toUpperCase()} (+${score})`;
     await database.execute({
       sql: "INSERT INTO board_words (board_id, word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
       args: [word, startX, startY, direction, userId, placedAt, score],
@@ -266,6 +267,10 @@ export async function POST(request: Request) {
       statements.push({
         sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
         args: [userId, letter, placedAt],
+      });
+      statements.push({
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, 1, ?, ?, ?, ?)",
+        args: [userId, letter, "placement", String(wordId), ledgerLabel, placedAt],
       });
     }
 

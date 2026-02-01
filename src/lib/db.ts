@@ -184,6 +184,26 @@ export const ensureSchema = async () => {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS letter_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL DEFAULT 1,
+        user_id INTEGER NOT NULL,
+        letter TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL,
+        source_id TEXT,
+        source_label TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    },
+    {
+      sql: "CREATE INDEX IF NOT EXISTS letter_ledger_user_idx ON letter_ledger (user_id, created_at)",
+      args: [],
+    },
   ]);
 
   const boardsResult = await database.execute({

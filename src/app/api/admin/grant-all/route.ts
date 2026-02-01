@@ -55,11 +55,18 @@ export async function POST(request: Request) {
 
     const updatedAt = new Date().toISOString();
     const statements = [] as Array<{ sql: string; args: (string | number)[] }>;
+    const ledgerLabel = adminUser.username
+      ? `Admin grant by ${adminUser.username}`
+      : "Admin grant";
     for (const userId of userIds) {
       for (const entry of entries) {
         statements.push({
           sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
           args: [userId, entry.letter, entry.quantity, updatedAt],
+        });
+        statements.push({
+          sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
+          args: [userId, entry.letter, entry.quantity, "grant", String(adminUser.id ?? ""), ledgerLabel, updatedAt],
         });
       }
     }
