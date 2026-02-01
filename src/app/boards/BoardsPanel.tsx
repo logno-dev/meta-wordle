@@ -40,6 +40,7 @@ export default function BoardsPanel() {
   const [membersByBoard, setMembersByBoard] = useState<Record<number, Member[]>>({});
   const [membersLoading, setMembersLoading] = useState<Record<number, boolean>>({});
   const [resetting, setResetting] = useState<Record<number, boolean>>({});
+  const [resetConfirm, setResetConfirm] = useState<Board | null>(null);
 
   const loadBoards = async () => {
     setStatus("loading");
@@ -344,6 +345,26 @@ export default function BoardsPanel() {
     }
   };
 
+  const handleRole = async (boardId: number, userId: number, role: string) => {
+    setMessage(null);
+    try {
+      const response = await fetch("/api/boards/members/role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board_id: boardId, user_id: userId, role }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setMessage(data.error ?? "Unable to update role.");
+        return;
+      }
+      await handleLoadMembers(boardId);
+      await loadBoards();
+    } catch (error) {
+      setMessage("Unable to update role.");
+    }
+  };
+
   const handleReset = async (boardId: number) => {
     setResetting((prev) => ({ ...prev, [boardId]: true }));
     setMessage(null);
@@ -364,6 +385,15 @@ export default function BoardsPanel() {
     } finally {
       setResetting((prev) => ({ ...prev, [boardId]: false }));
     }
+  };
+
+  const confirmReset = async () => {
+    if (!resetConfirm) {
+      return;
+    }
+    const boardId = resetConfirm.id;
+    setResetConfirm(null);
+    await handleReset(boardId);
   };
 
   return (
@@ -501,7 +531,7 @@ export default function BoardsPanel() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleReset(board.id)}
+                    onClick={() => setResetConfirm(board)}
                     disabled={Boolean(resetting[board.id])}
                     className="inline-flex h-9 items-center justify-center rounded-full bg-[#b45231] px-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-sm shadow-black/10 disabled:opacity-60"
                   >
@@ -585,13 +615,28 @@ export default function BoardsPanel() {
                             {member.role} · {member.status}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleBoot(board.id, member.id)}
-                          className="rounded-full border border-black/10 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#b45231]"
-                        >
-                          Remove
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRole(
+                                board.id,
+                                member.id,
+                                member.role === "admin" ? "member" : "admin",
+                              )
+                            }
+                            className="rounded-full border border-black/10 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+                          >
+                            {member.role === "admin" ? "Remove admin" : "Make admin"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleBoot(board.id, member.id)}
+                            className="rounded-full border border-black/10 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#b45231]"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -638,6 +683,36 @@ export default function BoardsPanel() {
       {message ? (
         <div className="pointer-events-none fixed bottom-6 right-6 z-50 rounded-2xl border border-black/10 bg-white/95 px-4 py-3 text-sm text-[#5a4d43] shadow-2xl shadow-black/10">
           {message}
+        </div>
+      ) : null}
+      {resetConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-black/10 bg-white p-6 text-[#241c15] shadow-2xl shadow-black/20">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+              Reset board
+            </div>
+            <h2 className="mt-3 font-display text-2xl">This cannot be undone</h2>
+            <p className="mt-3 text-sm text-[#5a4d43]">
+              Resetting “{resetConfirm.name}” will archive the current board, clear
+              all tiles, reset scores, and seed a new starting word.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setResetConfirm(null)}
+                className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmReset}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-[#b45231] px-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-sm shadow-black/10"
+              >
+                Reset board
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
