@@ -9,6 +9,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const telegramUserId = searchParams.get("telegram_user_id")?.trim();
     const username = searchParams.get("username")?.trim();
+    const boardIdParam = Number(searchParams.get("board_id") ?? 1);
+    const boardId = Number.isFinite(boardIdParam) ? Math.trunc(boardIdParam) : null;
+    if (!boardId || boardId < 1) {
+      return NextResponse.json({ error: "board_id is required." }, { status: 400 });
+    }
 
     await ensureSchema();
     const database = db();
@@ -58,21 +63,31 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
+    const memberResult = await database.execute({
+      sql: "SELECT status, total_score FROM board_members WHERE board_id = ? AND user_id = ?",
+      args: [boardId, user.id],
+    });
+    const memberRow = memberResult.rows[0] as Record<string, unknown> | undefined;
+    const memberStatus = String(memberRow?.status ?? "");
+    if (memberStatus !== "active") {
+      return NextResponse.json({ error: "Not a board member." }, { status: 403 });
+    }
+
     let lettersResult = await database.execute({
-      sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE board_id = 1 AND user_id = ? ORDER BY letter ASC",
-      args: [user.id],
+      sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE board_id = ? AND user_id = ? ORDER BY letter ASC",
+      args: [boardId, user.id],
     });
 
     if (lettersResult.rows.length === 0 && BASE_INVENTORY.length > 0) {
       const createdAt = new Date().toISOString();
       const statements = BASE_INVENTORY.map((entry) => ({
-        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?)",
-        args: [user.id, entry.letter, entry.quantity, createdAt],
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?, ?)",
+        args: [boardId, user.id, entry.letter, entry.quantity, createdAt],
       }));
       await database.batch(statements);
       lettersResult = await database.execute({
-        sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE board_id = 1 AND user_id = ? ORDER BY letter ASC",
-        args: [user.id],
+        sql: "SELECT letter, quantity, updated_at FROM user_letters WHERE board_id = ? AND user_id = ? ORDER BY letter ASC",
+        args: [boardId, user.id],
       });
     }
 
@@ -85,7 +100,7 @@ export async function GET(request: Request) {
         id: user.id,
         username: user.username,
         telegram_user_id: user.telegram_user_id,
-        total_score: user.total_score ?? 0,
+        total_score: Number(memberRow?.total_score ?? 0),
       },
       letters,
     });

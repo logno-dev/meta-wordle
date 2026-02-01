@@ -19,7 +19,7 @@ export default async function LoginPage() {
       sessionResult.rows[0] as Record<string, unknown> | undefined,
     );
     if (user?.id) {
-      redirect("/board");
+      redirect("/boards");
     }
   }
 

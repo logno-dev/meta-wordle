@@ -126,12 +126,16 @@ export async function POST(request: Request) {
     }
 
     const inventoryStatements = BASE_INVENTORY.map((entry) => ({
-      sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
-      args: [userId, entry.letter, entry.quantity, createdAt],
+      sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
+      args: [1, userId, entry.letter, entry.quantity, createdAt],
     }));
-    if (inventoryStatements.length > 0) {
-      await database.batch(inventoryStatements);
-    }
+    await database.batch([
+      {
+        sql: "INSERT INTO board_members (board_id, user_id, role, status, total_score, joined_at) VALUES (1, ?, 'member', 'active', 0, ?)",
+        args: [userId, createdAt],
+      },
+      ...inventoryStatements,
+    ]);
 
     const session = await createSession(database, userId);
     const response = NextResponse.json({ success: true });

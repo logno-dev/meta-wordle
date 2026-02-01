@@ -46,7 +46,44 @@ export const ensureSchema = async () => {
       sql: `CREATE TABLE IF NOT EXISTS boards (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        visibility TEXT NOT NULL DEFAULT 'public',
+        created_by INTEGER
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS board_members (
+        board_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        status TEXT NOT NULL DEFAULT 'active',
+        total_score INTEGER NOT NULL DEFAULT 0,
+        joined_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, user_id),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    },
+    {
+      sql: "CREATE INDEX IF NOT EXISTS board_members_user_idx ON board_members (user_id, status)",
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS board_invites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL,
+        code TEXT NOT NULL UNIQUE,
+        created_by INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT,
+        max_uses INTEGER NOT NULL DEFAULT 0,
+        uses INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        scope TEXT NOT NULL DEFAULT 'admin',
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (created_by) REFERENCES users(id)
       )`,
       args: [],
     },
@@ -215,8 +252,28 @@ export const ensureSchema = async () => {
   );
   if (boardsCount === 0) {
     await database.execute({
-      sql: "INSERT INTO boards (name, created_at) VALUES (?, ?)",
-      args: ["Main Board", new Date().toISOString()],
+      sql: "INSERT INTO boards (name, created_at, visibility) VALUES (?, ?, ?)",
+      args: ["Main Board", new Date().toISOString(), "public"],
+    });
+  }
+
+  const boardColumns = await database.execute({
+    sql: "PRAGMA table_info(boards)",
+    args: [],
+  });
+  const boardColumnNames = new Set(
+    boardColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!boardColumnNames.has("visibility")) {
+    await database.execute({
+      sql: "ALTER TABLE boards ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'",
+      args: [],
+    });
+  }
+  if (!boardColumnNames.has("created_by")) {
+    await database.execute({
+      sql: "ALTER TABLE boards ADD COLUMN created_by INTEGER",
+      args: [],
     });
   }
 
@@ -262,6 +319,28 @@ export const ensureSchema = async () => {
       sql: "ALTER TABLE users ADD COLUMN total_score INTEGER NOT NULL DEFAULT 0",
       args: [],
     });
+  }
+
+  const memberColumns = await database.execute({
+    sql: "PRAGMA table_info(board_members)",
+    args: [],
+  });
+  if (memberColumns.rows.length > 0) {
+    const memberNames = new Set(
+      memberColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+    );
+    if (!memberNames.has("total_score")) {
+      await database.execute({
+        sql: "ALTER TABLE board_members ADD COLUMN total_score INTEGER NOT NULL DEFAULT 0",
+        args: [],
+      });
+    }
+    if (!memberNames.has("status")) {
+      await database.execute({
+        sql: "ALTER TABLE board_members ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+        args: [],
+      });
+    }
   }
 
   const boardWordColumns = await database.execute({
@@ -474,6 +553,37 @@ export const ensureSchema = async () => {
       args: [],
     });
   }
+
+  const inviteColumns = await database.execute({
+    sql: "PRAGMA table_info(board_invites)",
+    args: [],
+  });
+  if (inviteColumns.rows.length > 0) {
+    const inviteNames = new Set(
+      inviteColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+    );
+    if (!inviteNames.has("is_active")) {
+      await database.execute({
+        sql: "ALTER TABLE board_invites ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1",
+        args: [],
+      });
+    }
+    if (!inviteNames.has("scope")) {
+      await database.execute({
+        sql: "ALTER TABLE board_invites ADD COLUMN scope TEXT NOT NULL DEFAULT 'admin'",
+        args: [],
+      });
+    }
+  }
+
+  await database.execute({
+    sql: "INSERT INTO board_members (board_id, user_id, role, status, total_score, joined_at) SELECT 1, id, CASE WHEN is_admin = 1 THEN 'admin' ELSE 'member' END, 'active', total_score, created_at FROM users WHERE telegram_user_id != 'system' AND id NOT IN (SELECT user_id FROM board_members WHERE board_id = 1)",
+    args: [],
+  });
+  await database.execute({
+    sql: "DELETE FROM board_members WHERE user_id IN (SELECT id FROM users WHERE telegram_user_id = 'system')",
+    args: [],
+  });
 };
 
 export const ensureSystemUser = async () => {

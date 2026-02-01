@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeUserRow } from "@/lib/db-utils";
-import { seedBoardIfEmpty } from "@/lib/board-seed";
+
+type VisibilityPayload = {
+  board_id?: number | string;
+  visibility?: string;
+};
+
+const normalizeVisibility = (value?: string) => (value === "public" ? "public" : "private");
 
 export async function POST(request: Request) {
   try {
@@ -12,13 +18,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    await ensureSchema();
-    const database = db();
-    const payload = (await request.json().catch(() => ({}))) as { board_id?: number | string };
-    const boardId = Number(payload.board_id ?? 1);
+    const payload = (await request.json()) as VisibilityPayload;
+    const boardId = Number(payload.board_id ?? 0);
+    const visibility = normalizeVisibility(payload.visibility);
     if (!Number.isFinite(boardId) || boardId < 1) {
       return NextResponse.json({ error: "board_id is required." }, { status: 400 });
     }
+
+    await ensureSchema();
+    const database = db();
     const sessionResult = await database.execute({
       sql: "SELECT users.id, users.username, users.password_hash, users.telegram_user_id, users.created_at, users.is_admin FROM user_sessions JOIN users ON user_sessions.user_id = users.id WHERE user_sessions.token = ? AND user_sessions.expires_at > ?",
       args: [sessionToken, new Date().toISOString()],
@@ -26,10 +34,10 @@ export async function POST(request: Request) {
     const user = normalizeUserRow(
       sessionResult.rows[0] as Record<string, unknown> | undefined,
     );
-
     if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
+
     if (user.is_admin !== 1) {
       const memberResult = await database.execute({
         sql: "SELECT role, status FROM board_members WHERE board_id = ? AND user_id = ?",
@@ -43,13 +51,19 @@ export async function POST(request: Request) {
       }
     }
 
-    const result = await seedBoardIfEmpty(boardId);
-    return NextResponse.json({ success: true, ...result });
+    await database.execute({
+      sql: "UPDATE boards SET visibility = ? WHERE id = ?",
+      args: [visibility, boardId],
+    });
+
+    return NextResponse.json({ success: true, visibility });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to seed board.";
+      error instanceof Error ? error.message : "Unable to update visibility.";
     const safeMessage =
-      process.env.NODE_ENV === "production" ? "Unable to seed board." : message;
+      process.env.NODE_ENV === "production"
+        ? "Unable to update visibility."
+        : message;
     return NextResponse.json({ error: safeMessage }, { status: 500 });
   }
 }

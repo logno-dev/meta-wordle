@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 export default function AdminPanel() {
+  const boardId = 1;
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
   const [grantStatus, setGrantStatus] = useState<string | null>(null);
   const [grantAllStatus, setGrantAllStatus] = useState<string | null>(null);
@@ -12,7 +13,11 @@ export default function AdminPanel() {
   const handleSeed = async () => {
     setSeedStatus("Seeding...");
     try {
-      const response = await fetch("/api/admin/seed", { method: "POST" });
+      const response = await fetch("/api/admin/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board_id: boardId }),
+      });
       const data = (await response.json()) as { error?: string; word?: string };
       if (!response.ok) {
         setSeedStatus(data?.error || "Unable to seed board.");
@@ -37,6 +42,7 @@ export default function AdminPanel() {
     const payload = {
       username,
       letters: parseLetters(lettersRaw),
+      board_id: boardId,
     };
 
     try {
@@ -62,7 +68,11 @@ export default function AdminPanel() {
   const handleArchive = async () => {
     setArchiveStatus("Archiving...");
     try {
-      const response = await fetch("/api/admin/archive", { method: "POST" });
+      const response = await fetch("/api/admin/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board_id: boardId }),
+      });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
         setArchiveStatus(data?.error || "Unable to archive board.");
@@ -84,6 +94,7 @@ export default function AdminPanel() {
     const lettersRaw = String(formData.get("letters") || "").trim();
     const payload = {
       letters: parseLetters(lettersRaw),
+      board_id: boardId,
     };
 
     try {
@@ -126,6 +137,7 @@ export default function AdminPanel() {
           ? new Date(availableAt).toISOString()
           : "",
       expires_at: expiresAt ? new Date(expiresAt).toISOString() : "",
+      board_id: boardId,
     };
 
     try {

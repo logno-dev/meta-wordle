@@ -8,6 +8,7 @@ type GiftPayload = {
   letters?: Record<string, number>;
   available_at?: string;
   expires_at?: string;
+  board_id?: number | string;
 };
 
 export async function POST(request: Request) {
@@ -23,6 +24,11 @@ export async function POST(request: Request) {
     const availableAt = payload.available_at?.trim();
     const expiresAt = payload.expires_at?.trim();
     const letters = payload.letters ?? {};
+    const boardId = Number(payload.board_id ?? 1);
+
+    if (!Number.isFinite(boardId) || boardId < 1) {
+      return NextResponse.json({ error: "board_id is required." }, { status: 400 });
+    }
 
     if (!title || !availableAt || !expiresAt) {
       return NextResponse.json(
@@ -71,14 +77,27 @@ export async function POST(request: Request) {
       sessionResult.rows[0] as Record<string, unknown> | undefined,
     );
 
-    if (!adminUser?.id || adminUser.is_admin !== 1) {
+    if (!adminUser?.id) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    if (adminUser.is_admin !== 1) {
+      const memberResult = await database.execute({
+        sql: "SELECT role, status FROM board_members WHERE board_id = ? AND user_id = ?",
+        args: [boardId, adminUser.id],
+      });
+      const memberRow = memberResult.rows[0] as Record<string, unknown> | undefined;
+      const role = String(memberRow?.role ?? "");
+      const status = String(memberRow?.status ?? "");
+      if (status !== "active" || role !== "admin") {
+        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+      }
     }
 
     const createdAt = new Date().toISOString();
     await database.execute({
-      sql: "INSERT INTO gifts (board_id, title, letters_json, available_at, expires_at, created_at) VALUES (1, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO gifts (board_id, title, letters_json, available_at, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       args: [
+        boardId,
         title,
         JSON.stringify(entries),
         availableDate.toISOString(),

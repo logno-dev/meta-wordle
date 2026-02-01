@@ -3,7 +3,11 @@ import { cookies } from "next/headers";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeUserRow } from "@/lib/db-utils";
 
-export async function GET(request: Request) {
+type RemoveInvitePayload = {
+  board_id?: number | string;
+};
+
+export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get("session_token")?.value;
@@ -11,10 +15,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const boardIdParam = Number(searchParams.get("board_id") ?? 1);
-    const boardId = Number.isFinite(boardIdParam) ? Math.trunc(boardIdParam) : null;
-    if (!boardId || boardId < 1) {
+    const payload = (await request.json()) as RemoveInvitePayload;
+    const boardId = Number(payload.board_id ?? 0);
+    if (!Number.isFinite(boardId) || boardId < 1) {
       return NextResponse.json({ error: "board_id is required." }, { status: 400 });
     }
 
@@ -27,34 +30,34 @@ export async function GET(request: Request) {
     const user = normalizeUserRow(
       sessionResult.rows[0] as Record<string, unknown> | undefined,
     );
-
     if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const memberResult = await database.execute({
-      sql: "SELECT status FROM board_members WHERE board_id = ? AND user_id = ?",
-      args: [boardId, user.id],
-    });
-    const memberStatus = String(
-      (memberResult.rows[0] as Record<string, unknown> | undefined)?.status ?? "",
-    );
-    if (memberStatus !== "active") {
-      return NextResponse.json({ error: "Not a board member." }, { status: 403 });
+    if (user.is_admin !== 1) {
+      const memberResult = await database.execute({
+        sql: "SELECT role, status FROM board_members WHERE board_id = ? AND user_id = ?",
+        args: [boardId, user.id],
+      });
+      const memberRow = memberResult.rows[0] as Record<string, unknown> | undefined;
+      const role = String(memberRow?.role ?? "");
+      const status = String(memberRow?.status ?? "");
+      if (status !== "active" || role !== "admin") {
+        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+      }
     }
 
-    const now = new Date().toISOString();
-    const giftsResult = await database.execute({
-      sql: "SELECT id, title, letters_json, available_at, expires_at FROM gifts WHERE board_id = ? AND available_at <= ? AND expires_at > ? AND id NOT IN (SELECT gift_id FROM gift_claims WHERE user_id = ?)",
-      args: [boardId, now, now, user.id],
+    await database.execute({
+      sql: "UPDATE board_invites SET is_active = 0 WHERE board_id = ?",
+      args: [boardId],
     });
 
-    return NextResponse.json({ gifts: giftsResult.rows });
+    return NextResponse.json({ success: true });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to load gifts.";
+      error instanceof Error ? error.message : "Unable to remove invite.";
     const safeMessage =
-      process.env.NODE_ENV === "production" ? "Unable to load gifts." : message;
+      process.env.NODE_ENV === "production" ? "Unable to remove invite." : message;
     return NextResponse.json({ error: safeMessage }, { status: 500 });
   }
 }

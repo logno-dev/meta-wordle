@@ -5,6 +5,7 @@ import { normalizeUserRow } from "@/lib/db-utils";
 
 type ClaimPayload = {
   gift_id?: number | string;
+  board_id?: number | string;
 };
 
 export async function POST(request: Request) {
@@ -17,8 +18,12 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as ClaimPayload;
     const giftId = Number(payload.gift_id);
+    const boardId = Number(payload.board_id ?? 0);
     if (!Number.isFinite(giftId)) {
       return NextResponse.json({ error: "gift_id is required." }, { status: 400 });
+    }
+    if (!Number.isFinite(boardId) || boardId < 1) {
+      return NextResponse.json({ error: "board_id is required." }, { status: 400 });
     }
 
     await ensureSchema();
@@ -35,10 +40,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    const memberResult = await database.execute({
+      sql: "SELECT status FROM board_members WHERE board_id = ? AND user_id = ?",
+      args: [boardId, user.id],
+    });
+    const memberStatus = String(
+      (memberResult.rows[0] as Record<string, unknown> | undefined)?.status ?? "",
+    );
+    if (memberStatus !== "active") {
+      return NextResponse.json({ error: "Not a board member." }, { status: 403 });
+    }
+
     const now = new Date().toISOString();
     const giftResult = await database.execute({
-      sql: "SELECT id, title, letters_json, available_at, expires_at FROM gifts WHERE id = ?",
-      args: [giftId],
+      sql: "SELECT id, title, letters_json, available_at, expires_at FROM gifts WHERE id = ? AND board_id = ?",
+      args: [giftId, boardId],
     });
     const giftRow = giftResult.rows[0] as Record<string, unknown> | undefined;
     if (!giftRow) {
@@ -80,12 +96,12 @@ export async function POST(request: Request) {
     const giftTitle = String(giftRow.title ?? "Gift");
     const statements = letters.flatMap((entry) => [
       {
-        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
-        args: [user.id, entry.letter, entry.quantity, updatedAt],
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
+        args: [boardId, user.id, entry.letter, entry.quantity, updatedAt],
       },
       {
-        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
-        args: [user.id, entry.letter, entry.quantity, "gift", String(giftId), giftTitle, updatedAt],
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        args: [boardId, user.id, entry.letter, entry.quantity, "gift", String(giftId), giftTitle, updatedAt],
       },
     ]);
     await database.batch([

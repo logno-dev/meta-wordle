@@ -13,6 +13,11 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const limitParam = Number(searchParams.get("limit") ?? 50);
+    const boardIdParam = Number(searchParams.get("board_id") ?? 1);
+    const boardId = Number.isFinite(boardIdParam) ? Math.trunc(boardIdParam) : null;
+    if (!boardId || boardId < 1) {
+      return NextResponse.json({ error: "board_id is required." }, { status: 400 });
+    }
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 50;
 
     await ensureSchema();
@@ -29,9 +34,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    const memberResult = await database.execute({
+      sql: "SELECT status FROM board_members WHERE board_id = ? AND user_id = ?",
+      args: [boardId, user.id],
+    });
+    const memberStatus = String(
+      (memberResult.rows[0] as Record<string, unknown> | undefined)?.status ?? "",
+    );
+    if (memberStatus !== "active") {
+      return NextResponse.json({ error: "Not a board member." }, { status: 403 });
+    }
+
     const ledgerResult = await database.execute({
-      sql: "SELECT letter, quantity, source, source_id, source_label, created_at FROM letter_ledger WHERE board_id = 1 AND user_id = ? ORDER BY created_at DESC LIMIT ?",
-      args: [user.id, limit],
+      sql: "SELECT letter, quantity, source, source_id, source_label, created_at FROM letter_ledger WHERE board_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT ?",
+      args: [boardId, user.id, limit],
     });
 
     const entries = ledgerResult.rows.map((row) => ({

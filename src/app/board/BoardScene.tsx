@@ -22,6 +22,7 @@ type BoardSceneProps = {
   letters: LetterEntry[];
   loggedIn: boolean;
   totalScore: number;
+  boardId: number;
 };
 
 const TILE_SIZE = 56;
@@ -37,6 +38,7 @@ export default function BoardScene({
   letters,
   loggedIn,
   totalScore,
+  boardId,
 }: BoardSceneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -604,7 +606,7 @@ export default function BoardScene({
       return;
     }
     setLeaderboardStatus("loading");
-    fetch("/api/board/leaderboard")
+    fetch(`/api/board/leaderboard?board_id=${boardId}`)
       .then(async (response) => {
         const data = (await response.json()) as {
           players?: Array<{ username: string; total_score: number }>;
@@ -618,7 +620,7 @@ export default function BoardScene({
       .catch(() => {
         setLeaderboardStatus("error");
       });
-  }, [showLeaderboard]);
+  }, [boardId, showLeaderboard]);
 
   const loadGifts = async () => {
     if (!loggedIn) {
@@ -626,7 +628,7 @@ export default function BoardScene({
     }
     setGiftStatus("loading");
     try {
-      const response = await fetch("/api/gifts/available");
+      const response = await fetch(`/api/gifts/available?board_id=${boardId}`);
       const data = (await response.json()) as { gifts?: Array<Record<string, unknown>> };
       if (!response.ok) {
         setGiftStatus("error");
@@ -645,7 +647,7 @@ export default function BoardScene({
     }
     setLedgerStatus("loading");
     try {
-      const response = await fetch("/api/letters/ledger?limit=80");
+      const response = await fetch(`/api/letters/ledger?board_id=${boardId}&limit=80`);
       const data = (await response.json()) as {
         entries?: Array<{
           letter: string;
@@ -680,20 +682,20 @@ export default function BoardScene({
       return;
     }
     loadGifts();
-  }, [loggedIn]);
+  }, [boardId, loggedIn]);
 
   useEffect(() => {
     if (!showGifts) {
       return;
     }
     loadGifts();
-  }, [showGifts]);
+  }, [boardId, showGifts]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
     const pollUpdate = async () => {
       try {
-        const response = await fetch("/api/board/updated");
+        const response = await fetch(`/api/board/updated?board_id=${boardId}`);
         if (!response.ok) {
           return;
         }
@@ -707,7 +709,7 @@ export default function BoardScene({
         }
 
         setLastBoardUpdate(updatedAt);
-        const boardResponse = await fetch("/api/board/state");
+        const boardResponse = await fetch(`/api/board/state?board_id=${boardId}`);
         if (boardResponse.ok) {
           const boardData = (await boardResponse.json()) as {
             tiles?: Array<Record<string, unknown>>;
@@ -748,7 +750,7 @@ export default function BoardScene({
         clearInterval(timer);
       }
     };
-  }, [lastBoardUpdate, typedWord.length]);
+  }, [boardId, lastBoardUpdate, typedWord.length]);
 
   const fetchTileInfo = async (tile: Tile, force?: boolean) => {
     const key = `${tile.x},${tile.y}`;
@@ -758,7 +760,9 @@ export default function BoardScene({
       return;
     }
     try {
-      const response = await fetch(`/api/board/tile?x=${tile.x}&y=${tile.y}`);
+      const response = await fetch(
+        `/api/board/tile?board_id=${boardId}&x=${tile.x}&y=${tile.y}`,
+      );
       if (!response.ok) {
         return;
       }
@@ -793,7 +797,7 @@ export default function BoardScene({
     }
     const refreshInventory = async () => {
       try {
-        const response = await fetch("/api/letters");
+        const response = await fetch(`/api/letters?board_id=${boardId}`);
         if (!response.ok) {
           return;
         }
@@ -854,7 +858,7 @@ export default function BoardScene({
     }
 
     refreshInventory();
-  }, [loggedIn, showInventory, inventoryView]);
+  }, [boardId, loggedIn, showInventory, inventoryView]);
 
   const ghostTiles = useMemo(() => {
     if (!selected || typedWord.length === 0) {
@@ -929,6 +933,7 @@ export default function BoardScene({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          board_id: boardId,
           word: typedWord,
           anchor_x: selected.x,
           anchor_y: selected.y,
@@ -953,8 +958,8 @@ export default function BoardScene({
       setWordStatus("idle");
 
       const [lettersResponse, boardResponse] = await Promise.all([
-        fetch("/api/letters"),
-        fetch("/api/board/state"),
+        fetch(`/api/letters?board_id=${boardId}`),
+        fetch(`/api/board/state?board_id=${boardId}`),
       ]);
       if (lettersResponse.ok) {
         const lettersData = (await lettersResponse.json()) as {
@@ -1000,13 +1005,13 @@ export default function BoardScene({
       const response = await fetch("/api/gifts/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gift_id: giftId }),
+        body: JSON.stringify({ gift_id: giftId, board_id: boardId }),
       });
       if (!response.ok) {
         return;
       }
       await loadGifts();
-      const lettersResponse = await fetch("/api/letters");
+      const lettersResponse = await fetch(`/api/letters?board_id=${boardId}`);
       if (lettersResponse.ok) {
         const lettersData = (await lettersResponse.json()) as {
           letters?: LetterEntry[];
@@ -1173,7 +1178,7 @@ export default function BoardScene({
 
       <div className="pointer-events-none absolute left-4 top-20 flex flex-col items-start gap-3 sm:left-6 sm:top-6">
         <a
-          href="/"
+          href="/boards"
           className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 bg-white/80 text-[#6b4b3d] shadow-lg shadow-black/5"
           aria-label="Home"
           title="Home"

@@ -46,7 +46,7 @@ export default function LoginForm() {
       setStatus("success");
       setMessage("Logged in. Sending you to the board...");
       form.reset();
-      setTimeout(() => router.push("/board"), 500);
+      setTimeout(() => router.push("/boards"), 500);
     } catch (error) {
       setStatus("error");
       const message =

@@ -76,12 +76,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const submissionResult = await database.execute({
-      sql: "SELECT id FROM wordle_submissions WHERE board_id = 1 AND user_id = ? AND wordle_day = ?",
-      args: [user.id, wordleDay],
+    const membershipResult = await database.execute({
+      sql: "SELECT board_id FROM board_members WHERE user_id = ? AND status = 'active'",
+      args: [user.id],
     });
+    const boardIds = membershipResult.rows
+      .map((row) => Number((row as Record<string, unknown>).board_id ?? 0))
+      .filter((id) => Number.isFinite(id) && id > 0);
 
-    if (submissionResult.rows.length > 0) {
+    if (boardIds.length === 0) {
+      return NextResponse.json(
+        { error: "No active boards." },
+        { status: 422 },
+      );
+    }
+
+    const placeholders = boardIds.map(() => "?").join(",");
+    const submissionResult = await database.execute({
+      sql: `SELECT board_id FROM wordle_submissions WHERE user_id = ? AND wordle_day = ? AND board_id IN (${placeholders})`,
+      args: [user.id, wordleDay, ...boardIds],
+    });
+    const submittedBoards = new Set(
+      submissionResult.rows.map((row) => Number((row as Record<string, unknown>).board_id ?? 0)),
+    );
+    const targetBoards = boardIds.filter((id) => !submittedBoards.has(id));
+
+    if (targetBoards.length === 0) {
       if (process.env.NODE_ENV !== "production") {
         console.warn("/api/award duplicate submission", {
           user_id: user.id,
@@ -107,25 +127,27 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
     const ledgerLabel = `Wordle ${wordleDay}${answer ? ` (${answer.toUpperCase()})` : ""}`;
-    await database.batch([
+    const statements = targetBoards.flatMap((boardId) => [
       {
-        sql: "INSERT INTO wordle_submissions (board_id, user_id, wordle_day, answer, score, created_at) VALUES (1, ?, ?, ?, ?, ?)",
-        args: [user.id, wordleDay, answer, score, now],
+        sql: "INSERT INTO wordle_submissions (board_id, user_id, wordle_day, answer, score, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        args: [boardId, user.id, wordleDay, answer, score, now],
       },
       {
-        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
-        args: [user.id, awarded, now],
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
+        args: [boardId, user.id, awarded, now],
       },
       {
-        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, 1, ?, ?, ?, ?)",
-        args: [user.id, awarded, "wordle", wordleDay, ledgerLabel, now],
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+        args: [boardId, user.id, awarded, "wordle", wordleDay, ledgerLabel, now],
       },
     ]);
+    await database.batch(statements);
 
     return NextResponse.json({
       success: true,
       letter: awarded,
       score,
+      awarded_boards: targetBoards,
     });
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {

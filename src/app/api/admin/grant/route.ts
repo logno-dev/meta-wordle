@@ -7,6 +7,7 @@ type GrantPayload = {
   username?: string;
   telegram_user_id?: string;
   letters?: Record<string, number>;
+  board_id?: number | string;
 };
 
 export async function POST(request: Request) {
@@ -21,6 +22,11 @@ export async function POST(request: Request) {
     const username = payload.username?.trim();
     const telegramUserId = payload.telegram_user_id?.trim();
     const letters = payload.letters ?? {};
+    const boardId = Number(payload.board_id ?? 1);
+
+    if (!Number.isFinite(boardId) || boardId < 1) {
+      return NextResponse.json({ error: "board_id is required." }, { status: 400 });
+    }
 
     if (!username && !telegramUserId) {
       return NextResponse.json(
@@ -53,8 +59,20 @@ export async function POST(request: Request) {
       sessionResult.rows[0] as Record<string, unknown> | undefined,
     );
 
-    if (!adminUser?.id || adminUser.is_admin !== 1) {
+    if (!adminUser?.id) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    if (adminUser.is_admin !== 1) {
+      const memberResult = await database.execute({
+        sql: "SELECT role, status FROM board_members WHERE board_id = ? AND user_id = ?",
+        args: [boardId, adminUser.id],
+      });
+      const memberRow = memberResult.rows[0] as Record<string, unknown> | undefined;
+      const role = String(memberRow?.role ?? "");
+      const status = String(memberRow?.status ?? "");
+      if (status !== "active" || role !== "admin") {
+        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+      }
     }
 
     const lookupValue = telegramUserId ?? username;
@@ -84,12 +102,12 @@ export async function POST(request: Request) {
       : "Admin grant";
     const statements = entries.flatMap((entry) => [
       {
-        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
-        args: [userId, entry.letter, entry.quantity, updatedAt],
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
+        args: [boardId, userId, entry.letter, entry.quantity, updatedAt],
       },
       {
-        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
-        args: [userId, entry.letter, entry.quantity, "grant", String(adminUser.id ?? ""), ledgerLabel, updatedAt],
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        args: [boardId, userId, entry.letter, entry.quantity, "grant", String(adminUser.id ?? ""), ledgerLabel, updatedAt],
       },
     ]);
 

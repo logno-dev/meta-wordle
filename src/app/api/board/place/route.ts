@@ -6,6 +6,7 @@ import { SCRABBLE_SCORES, pickRewardLetters } from "@/lib/letters";
 import { setBoardUpdated } from "@/lib/board-meta";
 
 type PlacePayload = {
+  board_id?: number | string;
   word?: string;
   anchor_x?: number | string;
   anchor_y?: number | string;
@@ -60,15 +61,16 @@ export async function POST(request: Request) {
     }
 
     const payload = (await request.json()) as PlacePayload;
+    const boardId = parseCoordinate(payload.board_id);
     const word = normalizeWord(payload.word);
     const anchorX = parseCoordinate(payload.anchor_x);
     const anchorY = parseCoordinate(payload.anchor_y);
     const anchorIndex = parseCoordinate(payload.anchor_index);
     const direction = payload.direction === "vertical" ? "vertical" : "horizontal";
 
-    if (!word || anchorX === null || anchorY === null || anchorIndex === null) {
+    if (!word || boardId === null || boardId < 1 || anchorX === null || anchorY === null || anchorIndex === null) {
       return NextResponse.json(
-        { error: "word, anchor_x, anchor_y, and anchor_index are required." },
+        { error: "board_id, word, anchor_x, anchor_y, and anchor_index are required." },
         { status: 400 },
       );
     }
@@ -107,17 +109,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    const memberResult = await database.execute({
+      sql: "SELECT status FROM board_members WHERE board_id = ? AND user_id = ?",
+      args: [boardId, userId],
+    });
+    const memberStatus = String(
+      (memberResult.rows[0] as Record<string, unknown> | undefined)?.status ?? "",
+    );
+    if (memberStatus !== "active") {
+      return NextResponse.json({ error: "Not a board member." }, { status: 403 });
+    }
+
     const existingCountResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM board_tiles WHERE board_id = 1",
-      args: [],
+      sql: "SELECT COUNT(*) as count FROM board_tiles WHERE board_id = ?",
+      args: [boardId],
     });
     const existingCount = Number(
       (existingCountResult.rows[0] as Record<string, unknown> | undefined)?.count ?? 0,
     );
 
     const neighborResult = await database.execute({
-      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.board_id = 1 AND board_tiles.x BETWEEN ? AND ? AND board_tiles.y BETWEEN ? AND ?",
-      args: [minX - 1, maxX + 1, minY - 1, maxY + 1],
+      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.board_id = ? AND board_tiles.x BETWEEN ? AND ? AND board_tiles.y BETWEEN ? AND ?",
+      args: [boardId, minX - 1, maxX + 1, minY - 1, maxY + 1],
     });
     const neighborTiles = neighborResult.rows.map((row) => ({
       x: Number((row as Record<string, unknown>).x),
@@ -198,8 +211,8 @@ export async function POST(request: Request) {
     const placeholders = lettersNeeded.map(() => "?").join(",");
     const inventoryResult = lettersNeeded.length
       ? await database.execute({
-          sql: `SELECT letter, quantity FROM user_letters WHERE board_id = 1 AND user_id = ? AND letter IN (${placeholders})`,
-          args: [userId, ...lettersNeeded],
+          sql: `SELECT letter, quantity FROM user_letters WHERE board_id = ? AND user_id = ? AND letter IN (${placeholders})`,
+          args: [boardId, userId, ...lettersNeeded],
         })
       : { rows: [] };
 
@@ -226,8 +239,8 @@ export async function POST(request: Request) {
     const rewardLetters = rewardCount > 0 ? pickRewardLetters(rewardCount) : [];
     const ledgerLabel = `Placed ${word.toUpperCase()} (+${score})`;
     await database.execute({
-      sql: "INSERT INTO board_words (board_id, word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
-      args: [word, startX, startY, direction, userId, placedAt, score],
+      sql: "INSERT INTO board_words (board_id, word, start_x, start_y, direction, placed_by, placed_at, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [boardId, word, startX, startY, direction, userId, placedAt, score],
     });
 
     const wordIdResult = await database.execute({
@@ -245,46 +258,46 @@ export async function POST(request: Request) {
     }
 
     const statements = newTiles.map((tile) => ({
-      sql: "INSERT INTO board_tiles (board_id, x, y, letter, word_id, placed_by, placed_at) VALUES (1, ?, ?, ?, ?, ?, ?)",
-      args: [tile.x, tile.y, tile.letter, wordId, userId, placedAt],
+      sql: "INSERT INTO board_tiles (board_id, x, y, letter, word_id, placed_by, placed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      args: [boardId, tile.x, tile.y, tile.letter, wordId, userId, placedAt],
     }));
 
     for (const pos of positions) {
       statements.push({
-        sql: "INSERT INTO board_word_tiles (board_id, word_id, x, y) VALUES (1, ?, ?, ?)",
-        args: [wordId, pos.x, pos.y],
+        sql: "INSERT INTO board_word_tiles (board_id, word_id, x, y) VALUES (?, ?, ?, ?)",
+        args: [boardId, wordId, pos.x, pos.y],
       });
     }
 
     for (const [letter, count] of letterCounts.entries()) {
       statements.push({
-        sql: "UPDATE user_letters SET quantity = quantity - ?, updated_at = ? WHERE board_id = 1 AND user_id = ? AND letter = ?",
-        args: [count, placedAt, userId, letter],
+        sql: "UPDATE user_letters SET quantity = quantity - ?, updated_at = ? WHERE board_id = ? AND user_id = ? AND letter = ?",
+        args: [count, placedAt, boardId, userId, letter],
       });
       statements.push({
-        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
-        args: [userId, letter, -count, "spend", String(wordId), ledgerLabel, placedAt],
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        args: [boardId, userId, letter, -count, "spend", String(wordId), ledgerLabel, placedAt],
       });
     }
 
     for (const letter of rewardLetters) {
       statements.push({
-        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (1, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
-        args: [userId, letter, placedAt],
+        sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + 1, updated_at = excluded.updated_at",
+        args: [boardId, userId, letter, placedAt],
       });
       statements.push({
-        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (1, ?, ?, 1, ?, ?, ?, ?)",
-        args: [userId, letter, "placement", String(wordId), ledgerLabel, placedAt],
+        sql: "INSERT INTO letter_ledger (board_id, user_id, letter, quantity, source, source_id, source_label, created_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+        args: [boardId, userId, letter, "placement", String(wordId), ledgerLabel, placedAt],
       });
     }
 
     statements.push({
-      sql: "UPDATE users SET total_score = total_score + ? WHERE id = ?",
-      args: [score, userId],
+      sql: "UPDATE board_members SET total_score = total_score + ? WHERE board_id = ? AND user_id = ?",
+      args: [score, boardId, userId],
     });
 
     await database.batch(statements);
-    await setBoardUpdated(placedAt);
+    await setBoardUpdated(placedAt, boardId);
 
     return NextResponse.json({
       success: true,
