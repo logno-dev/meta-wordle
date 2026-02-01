@@ -27,6 +27,8 @@ type BoardSceneProps = {
 const TILE_SIZE = 56;
 const PLANE_SIZE = 4200;
 const KEYBOARD_ESTIMATE = 260;
+const MIN_SCALE = 0.6;
+const MAX_SCALE = 2.5;
 
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 
@@ -38,6 +40,7 @@ export default function BoardScene({
 }: BoardSceneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState<Tile | null>(null);
   const [typedWord, setTypedWord] = useState("");
@@ -45,6 +48,11 @@ export default function BoardScene({
   const [directionMode, setDirectionMode] = useState<"perpendicular" | "straight">(
     "perpendicular",
   );
+  const [directionHint, setDirectionHint] = useState<{
+    x: number;
+    y: number;
+    direction: "horizontal" | "vertical";
+  } | null>(null);
   const [wordStatus, setWordStatus] = useState<
     "idle" | "checking" | "valid" | "invalid"
   >("idle");
@@ -56,6 +64,13 @@ export default function BoardScene({
   const [inventory, setInventory] = useState<LetterEntry[]>(letters);
   const [score, setScore] = useState(totalScore);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const dragMovedRef = useRef(false);
+  const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{
+    startDistance: number;
+    startScale: number;
+    startOffset: { x: number; y: number };
+  } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [leaderboard, setLeaderboard] = useState<
@@ -102,6 +117,16 @@ export default function BoardScene({
         ? "vertical"
         : "horizontal"
     : "horizontal";
+
+  const getPlacementDirection = (
+    tile: Tile,
+    mode: "perpendicular" | "straight",
+  ) =>
+    mode === "straight"
+      ? tile.direction
+      : tile.direction === "horizontal"
+        ? "vertical"
+        : "horizontal";
 
   const anchorIndexes = useMemo(() => {
     if (!selected) {
@@ -202,6 +227,26 @@ export default function BoardScene({
     }
   }, [anchorIndexes.length, anchorOccurrence]);
 
+  useEffect(() => {
+    if (!directionHint) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setDirectionHint(null);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [directionHint]);
+
+  useEffect(() => {
+    if (!placeMessage) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setPlaceMessage(null);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [placeMessage]);
+
   const computeCenterOffset = () => {
     if (!containerRef.current) {
       return null;
@@ -229,8 +274,8 @@ export default function BoardScene({
         : 0;
     const boardHeight = Math.max(0, offsetHeight - KEYBOARD_ESTIMATE);
     return {
-      x: offsetWidth / 2 - centerX * TILE_SIZE,
-      y: boardHeight / 2 - centerY * TILE_SIZE,
+      x: offsetWidth / 2 - centerX * TILE_SIZE * scale,
+      y: boardHeight / 2 - centerY * TILE_SIZE * scale,
     };
   };
 
@@ -244,7 +289,7 @@ export default function BoardScene({
     }
     setOffset(nextOffset);
     setHasCentered(true);
-  }, [boardTiles, hasCentered]);
+  }, [boardTiles, hasCentered, scale]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -283,12 +328,68 @@ export default function BoardScene({
     if (target?.closest("button[data-tile]")) {
       return;
     }
-    setDragging(true);
-    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    dragMovedRef.current = false;
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    if (activePointersRef.current.size === 1) {
+      setDragging(true);
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+      pinchRef.current = null;
+      return;
+    }
+    if (activePointersRef.current.size === 2) {
+      setDragging(false);
+      lastPointerRef.current = null;
+      if (!containerRef.current) {
+        return;
+      }
+      const points = Array.from(activePointersRef.current.values());
+      const dx = points[0].x - points[1].x;
+      const dy = points[0].y - points[1].y;
+      pinchRef.current = {
+        startDistance: Math.hypot(dx, dy),
+        startScale: scale,
+        startOffset: offset,
+      };
+    }
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (pinchRef.current && activePointersRef.current.size >= 2) {
+      if (!containerRef.current) {
+        return;
+      }
+      const points = Array.from(activePointersRef.current.values());
+      const dx = points[0].x - points[1].x;
+      const dy = points[0].y - points[1].y;
+      const distance = Math.hypot(dx, dy);
+      const nextScale = Math.min(
+        MAX_SCALE,
+        Math.max(MIN_SCALE, (pinchRef.current.startScale * distance) / pinchRef.current.startDistance),
+      );
+      const rect = containerRef.current.getBoundingClientRect();
+      const center = {
+        x: (points[0].x + points[1].x) / 2 - rect.left,
+        y: (points[0].y + points[1].y) / 2 - rect.top,
+      };
+      const world = {
+        x: (center.x - pinchRef.current.startOffset.x) / pinchRef.current.startScale,
+        y: (center.y - pinchRef.current.startOffset.y) / pinchRef.current.startScale,
+      };
+      setScale(nextScale);
+      setOffset({
+        x: center.x - world.x * nextScale,
+        y: center.y - world.y * nextScale,
+      });
+      return;
+    }
     if (!dragging) {
       return;
     }
@@ -299,6 +400,9 @@ export default function BoardScene({
     }
     const deltaX = event.clientX - last.x;
     const deltaY = event.clientY - last.y;
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+      dragMovedRef.current = true;
+    }
     lastPointerRef.current = { x: event.clientX, y: event.clientY };
     setOffset((prev) => ({
       x: prev.x + deltaX,
@@ -307,15 +411,90 @@ export default function BoardScene({
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    activePointersRef.current.delete(event.pointerId);
+    pinchRef.current = null;
+    if (activePointersRef.current.size === 1) {
+      const remaining = Array.from(activePointersRef.current.values())[0];
+      setDragging(true);
+      lastPointerRef.current = { x: remaining.x, y: remaining.y };
+    } else {
+      setDragging(false);
+      lastPointerRef.current = null;
+    }
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+  };
+
+  const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
+    activePointersRef.current.delete(event.pointerId);
+    pinchRef.current = null;
     setDragging(false);
     lastPointerRef.current = null;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
   };
 
-  const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
-    setDragging(false);
-    lastPointerRef.current = null;
-    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+  const resetDraftState = () => {
+    setTypedWord("");
+    setAnchorOccurrence(0);
+    setWordStatus("idle");
+    setPlaceStatus("idle");
+    setPlaceMessage(null);
+  };
+
+  const clearSelection = () => {
+    setSelected(null);
+    setDirectionMode("perpendicular");
+    resetDraftState();
+    setHoveredTile(null);
+  };
+
+  const toggleDirection = (tile: Tile) => {
+    const nextMode = directionMode === "perpendicular" ? "straight" : "perpendicular";
+    const nextDirection = getPlacementDirection(tile, nextMode);
+    resetDraftState();
+    setDirectionMode(nextMode);
+    setDirectionHint({ x: tile.x, y: tile.y, direction: nextDirection });
+  };
+
+  const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (dragMovedRef.current) {
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button[data-tile]")) {
+      return;
+    }
+    if (selected) {
+      clearSelection();
+    }
+  };
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!containerRef.current) {
+      return;
+    }
+    event.preventDefault();
+    const rect = containerRef.current.getBoundingClientRect();
+    const pointer = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    const intensity = event.deltaY;
+    if (intensity === 0) {
+      return;
+    }
+    const nextScale = Math.min(
+      MAX_SCALE,
+      Math.max(MIN_SCALE, scale * (1 - intensity * 0.001)),
+    );
+    const world = {
+      x: (pointer.x - offset.x) / scale,
+      y: (pointer.y - offset.y) / scale,
+    };
+    setScale(nextScale);
+    setOffset({
+      x: pointer.x - world.x * nextScale,
+      y: pointer.y - world.y * nextScale,
+    });
   };
 
   const handleCenterBoard = () => {
@@ -327,13 +506,18 @@ export default function BoardScene({
   };
 
   const handleSelectTile = (tile: Tile) => {
+    if (selected && selected.x === tile.x && selected.y === tile.y) {
+      toggleDirection(tile);
+      return;
+    }
     setSelected(tile);
-    setTypedWord("");
-    setAnchorOccurrence(0);
+    resetDraftState();
     setDirectionMode("perpendicular");
-    setWordStatus("idle");
-    setPlaceStatus("idle");
-    setPlaceMessage(null);
+    setDirectionHint({
+      x: tile.x,
+      y: tile.y,
+      direction: getPlacementDirection(tile, "perpendicular"),
+    });
     fetchTileInfo(tile, true);
   };
 
@@ -730,6 +914,8 @@ export default function BoardScene({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onWheel={handleWheel}
+        onClick={handleBoardClick}
       >
         <div
           className="absolute rounded-[48px] border border-black/10 bg-[radial-gradient(circle_at_top,#fff8ee_0%,#f3eadd_55%,#e9dfd1_100%)]"
@@ -738,12 +924,50 @@ export default function BoardScene({
             height: PLANE_SIZE,
             transform: `translate(${offset.x - PLANE_SIZE / 2}px, ${
               offset.y - PLANE_SIZE / 2
-            }px)`,
+            }px) scale(${scale})`,
+            transformOrigin: "center center",
             backgroundSize: `${TILE_SIZE}px ${TILE_SIZE}px`,
             backgroundImage:
               "linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)",
           }}
         >
+          {directionHint ? (
+            <div
+              className={`direction-hint pointer-events-none absolute z-30 flex h-8 w-8 items-center justify-center text-[#d76f4b] ${
+                directionHint.direction === "horizontal"
+                  ? "direction-hint-horizontal"
+                  : "direction-hint-vertical"
+              }`}
+              style={{
+                left:
+                  PLANE_SIZE / 2 +
+                  directionHint.x * TILE_SIZE +
+                  (directionHint.direction === "horizontal" ? TILE_SIZE : TILE_SIZE / 2),
+                top:
+                  PLANE_SIZE / 2 +
+                  directionHint.y * TILE_SIZE +
+                  (directionHint.direction === "vertical" ? TILE_SIZE : TILE_SIZE / 2),
+              }}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 48 48"
+                className="h-7 w-7"
+                style={{
+                  transform:
+                    directionHint.direction === "vertical" ? "rotate(90deg)" : "none",
+                }}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M8 24h28" />
+                <path d="M30 16l8 8-8 8" />
+              </svg>
+            </div>
+          ) : null}
           {ghostTiles.map((tile, index) => (
             <div
               key={`ghost-${index}`}
@@ -804,17 +1028,30 @@ export default function BoardScene({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
-        <div className="pointer-events-auto rounded-full border border-black/10 bg-white/80 px-6 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#6b4b3d] shadow-lg shadow-black/5">
-          {selected
-            ? `Anchor ${selected.letter.toUpperCase()} · ${placementDirection}`
-            : "Select a tile to start"}
+      {!selected ? (
+        <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
+          <div className="pointer-events-auto rounded-full border border-black/10 bg-white/80 px-6 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#6b4b3d] shadow-lg shadow-black/5">
+            Select a tile to start
+          </div>
         </div>
-      </div>
+      ) : null}
       {boardNotice ? (
         <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center">
           <div className="pointer-events-auto rounded-full border border-[#6fd3a5]/60 bg-[#e7fff2] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#2f6b4f] shadow-lg shadow-black/5">
             {boardNotice}
+          </div>
+        </div>
+      ) : null}
+      {placeMessage ? (
+        <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center">
+          <div
+            className={`pointer-events-auto rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/5 ${
+              placeStatus === "error"
+                ? "border-[#d76f4b]/60 bg-[#fff1e7] text-[#b45231]"
+                : "border-[#6fd3a5]/60 bg-[#e7fff2] text-[#2f6b4f]"
+            }`}
+          >
+            {placeMessage}
           </div>
         </div>
       ) : null}
@@ -913,16 +1150,7 @@ export default function BoardScene({
         {selected ? (
           <button
             type="button"
-            onClick={() =>
-              setDirectionMode((value) => {
-                setTypedWord("");
-                setAnchorOccurrence(0);
-                setWordStatus("idle");
-                setPlaceStatus("idle");
-                setPlaceMessage(null);
-                return value === "perpendicular" ? "straight" : "perpendicular";
-              })
-            }
+            onClick={() => toggleDirection(selected)}
             className="pointer-events-auto rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-lg shadow-black/5"
           >
             {directionMode === "perpendicular" ? "Straight" : "Cross"}
@@ -1070,7 +1298,10 @@ export default function BoardScene({
               <div key={row} className="flex justify-center gap-1">
                 {row.split("").map((letter) => {
                   const isAnchorLetter = selected?.letter === letter;
-                  const isEnabled = loggedIn && selected && canUseLetter(letter);
+                  const availableCount = letterInventory.get(letter) ?? 0;
+                  const isEnabled = selected
+                    ? loggedIn && canUseLetter(letter)
+                    : loggedIn && availableCount > 0;
                   const disabled = !isEnabled && !isAnchorLetter;
                   const letterScore = SCRABBLE_SCORES[letter] ?? 1;
                   return (
@@ -1088,6 +1319,14 @@ export default function BoardScene({
                       }`}
                     >
                       {letter}
+                      {availableCount > 0 ? (
+                        <span
+                          className="pointer-events-none absolute flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#d76f4b]/70 px-1 text-[9px] font-semibold text-[#fff8f1]"
+                          style={{ left: -4, top: -4 }}
+                        >
+                          {availableCount}
+                        </span>
+                      ) : null}
                       <span className="pointer-events-none absolute right-1 top-1 text-[9px] font-semibold text-[#8a7466]">
                         {letterScore}
                       </span>
@@ -1124,7 +1363,7 @@ export default function BoardScene({
             <button
               type="button"
               onClick={() => setShowInventory((value) => !value)}
-              className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-sm shadow-black/5"
+              className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-sm shadow-black/5"
             >
               {showInventory ? "Hide inventory" : "Inventory"}
             </button>
@@ -1144,15 +1383,12 @@ export default function BoardScene({
               </button>
             ) : null}
           </div>
-          {selected && placeMessage ? (
-            <div className="mt-2 text-xs text-[#b45231]">{placeMessage}</div>
-          ) : null}
         </div>
       </div>
 
       {showInventory ? (
-        <div className="pointer-events-none absolute left-1/2 w-[min(720px,92vw)] -translate-x-1/2" style={{ bottom: "calc(180px + env(safe-area-inset-bottom))" }}>
-          <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/95 p-4 text-xs text-[#5a4d43] shadow-2xl shadow-black/10">
+        <div className="pointer-events-none fixed inset-0 flex items-center justify-center px-4">
+          <div className="pointer-events-auto w-[min(720px,92vw)] rounded-3xl border border-black/10 bg-white/95 p-4 text-xs text-[#5a4d43] shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
               <span>Inventory</span>
               <button
