@@ -235,7 +235,7 @@ export async function POST(request: Request) {
 
     const placedAt = new Date().toISOString();
     const score = calculateScore(word);
-    const rewardCount = score >= 18 ? 5 : score >= 10 ? 3 : 1;
+    const rewardCount = score >= 18 ? 3 : score >= 10 ? 2 : 1;
     const rewardLetters = rewardCount > 0 ? pickRewardLetters(rewardCount) : [];
     const ledgerLabel = `Placed ${word.toUpperCase()} (+${score})`;
     await database.execute({
