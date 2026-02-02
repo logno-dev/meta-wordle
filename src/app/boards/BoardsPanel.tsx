@@ -29,7 +29,11 @@ type Invite = {
 
 export default function BoardsPanel() {
   const [boards, setBoards] = useState<Board[]>([]);
+  const [publicBoards, setPublicBoards] = useState<Board[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [publicStatus, setPublicStatus] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
   const [message, setMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copyHint, setCopyHint] = useState<
@@ -66,8 +70,33 @@ export default function BoardsPanel() {
     }
   };
 
+  const loadPublicBoards = async () => {
+    setPublicStatus("loading");
+    try {
+      const response = await fetch("/api/boards/public");
+      const data = (await response.json()) as { boards?: Array<Record<string, unknown>> };
+      if (!response.ok) {
+        setPublicStatus("error");
+        return;
+      }
+      const nextBoards = (data.boards ?? []).map((row) => ({
+        id: Number(row.id ?? 0),
+        name: String(row.name ?? ""),
+        visibility: String(row.visibility ?? "public"),
+        role: "member",
+        total_score: 0,
+        member_count: Number(row.member_count ?? 0),
+      }));
+      setPublicBoards(nextBoards.filter((board) => Number.isFinite(board.id) && board.id > 0));
+      setPublicStatus("idle");
+    } catch (error) {
+      setPublicStatus("error");
+    }
+  };
+
   useEffect(() => {
     loadBoards();
+    loadPublicBoards();
   }, []);
 
   const handleCreateBoard = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -118,6 +147,28 @@ export default function BoardsPanel() {
       form.reset();
       setMessage("Joined board.");
       await loadBoards();
+      await loadPublicBoards();
+    } catch (error) {
+      setMessage("Unable to join board.");
+    }
+  };
+
+  const handleJoinPublicBoard = async (boardId: number) => {
+    setMessage(null);
+    try {
+      const response = await fetch("/api/boards/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board_id: boardId }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setMessage(data.error ?? "Unable to join board.");
+        return;
+      }
+      setMessage("Joined board.");
+      await loadBoards();
+      await loadPublicBoards();
     } catch (error) {
       setMessage("Unable to join board.");
     }
@@ -258,6 +309,7 @@ export default function BoardsPanel() {
             : board,
         ),
       );
+      await loadPublicBoards();
     } catch (error) {
       setMessage("Unable to update visibility.");
     }
@@ -677,6 +729,43 @@ export default function BoardsPanel() {
                 </span>
               </div>
             ) : null}
+          </div>
+        ))}
+      </section>
+
+      <section className="grid gap-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+          Discover public boards
+        </div>
+        {publicStatus === "loading" ? <div>Loading public boards...</div> : null}
+        {publicStatus === "error" ? <div>Unable to load public boards.</div> : null}
+        {publicStatus === "idle" && publicBoards.length === 0 ? (
+          <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[#5a4d43]">
+            No public boards available right now.
+          </div>
+        ) : null}
+        {publicBoards.map((board) => (
+          <div
+            key={board.id}
+            className="rounded-3xl border border-black/10 bg-white/85 p-6 shadow-2xl shadow-black/10"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-display text-2xl text-[#241c15]">
+                  {board.name}
+                </div>
+                <div className="mt-1 text-xs uppercase tracking-[0.2em] text-[#6b4b3d]">
+                  Public · {board.member_count} members
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleJoinPublicBoard(board.id)}
+                className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 bg-white px-6 text-sm font-semibold text-[#b45231] shadow-lg shadow-black/5 transition hover:bg-[#fff1e7]"
+              >
+                Join board
+              </button>
+            </div>
           </div>
         ))}
       </section>
