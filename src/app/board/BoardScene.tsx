@@ -69,6 +69,7 @@ export default function BoardScene({
   const dragMovedRef = useRef(false);
   const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pointerDownTileRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const pinchRef = useRef<{
     startDistance: number;
     startScale: number;
@@ -375,6 +376,7 @@ export default function BoardScene({
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     dragMovedRef.current = false;
+    pointerDownPosRef.current = { x: event.clientX, y: event.clientY };
     const target = event.target as HTMLElement | null;
     const tileButton = target?.closest("button[data-tile]") as HTMLButtonElement | null;
     if (tileButton) {
@@ -484,15 +486,21 @@ export default function BoardScene({
       setDragging(false);
       lastPointerRef.current = null;
     }
-    if (!dragMovedRef.current && pointerDownTileRef.current) {
+    const pointerStart = pointerDownPosRef.current;
+    const tapDistance = pointerStart
+      ? Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y)
+      : null;
+    const isTap = tapDistance !== null && tapDistance <= 6;
+    if ((isTap || !dragMovedRef.current) && pointerDownTileRef.current) {
       const { x, y } = pointerDownTileRef.current;
       const tile = boardTileLookup.get(`${x},${y}`);
       if (tile) {
         skipNextBoardClickRef.current = true;
-        handleSelectTile(tile);
+        handleSelectTile(tile, true);
       }
     }
     pointerDownTileRef.current = null;
+    pointerDownPosRef.current = null;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
   };
 
@@ -502,6 +510,7 @@ export default function BoardScene({
     setDragging(false);
     lastPointerRef.current = null;
     pointerDownTileRef.current = null;
+    pointerDownPosRef.current = null;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
   };
 
@@ -582,8 +591,8 @@ export default function BoardScene({
     setOffset(nextOffset);
   };
 
-  const handleSelectTile = (tile: Tile) => {
-    if (dragMovedRef.current) {
+  const handleSelectTile = (tile: Tile, force = false) => {
+    if (!force && dragMovedRef.current) {
       return;
     }
     if (selected && selected.x === tile.x && selected.y === tile.y) {
