@@ -70,6 +70,7 @@ export default function BoardScene({
   const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pointerDownTileRef = useRef<{ x: number; y: number } | null>(null);
   const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  const skipNextTileClickRef = useRef(false);
   const pinchRef = useRef<{
     startDistance: number;
     startScale: number;
@@ -496,6 +497,7 @@ export default function BoardScene({
       const tile = boardTileLookup.get(`${x},${y}`);
       if (tile) {
         skipNextBoardClickRef.current = true;
+        skipNextTileClickRef.current = true;
         handleSelectTile(tile, true);
       }
     }
@@ -1113,7 +1115,13 @@ export default function BoardScene({
             <button
               key={`${tile.x}-${tile.y}`}
               type="button"
-              onClick={() => handleSelectTile(tile)}
+              onClick={() => {
+                if (skipNextTileClickRef.current) {
+                  skipNextTileClickRef.current = false;
+                  return;
+                }
+                handleSelectTile(tile);
+              }}
               onMouseEnter={() => handleHoverTile(tile)}
               onMouseLeave={handleLeaveTile}
               data-tile
@@ -1282,7 +1290,7 @@ export default function BoardScene({
             onClick={() => toggleDirection(selected)}
             className="pointer-events-auto rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-lg shadow-black/5"
           >
-            {directionMode === "perpendicular" ? "Straight" : "Cross"}
+            {directionMode === "perpendicular" ? "Cross" : "Straight"}
           </button>
         ) : null}
         {selected && anchorIndexes.length > 1 ? (
