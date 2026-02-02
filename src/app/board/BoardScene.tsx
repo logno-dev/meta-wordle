@@ -1051,17 +1051,15 @@ export default function BoardScene({
         onClick={handleBoardClick}
       >
         <div
-          className="board-plane absolute rounded-[48px] border border-black/10 bg-[radial-gradient(circle_at_top,#fff8ee_0%,#f3eadd_55%,#e9dfd1_100%)]"
+          className="board-plane absolute rounded-[48px] border border-black/10"
           style={{
             width: PLANE_SIZE,
             height: PLANE_SIZE,
             transform: `translate(${offset.x - PLANE_SIZE / 2}px, ${offset.y - PLANE_SIZE / 2
               }px) scale(${scale})`,
             transformOrigin: "center center",
-            backgroundSize: `${TILE_SIZE}px ${TILE_SIZE}px`,
-            backgroundImage:
-              "linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)",
-          }}
+            "--board-grid-size": `${TILE_SIZE}px`,
+          } as React.CSSProperties}
         >
           {directionHint ? (
             <div
