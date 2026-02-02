@@ -1051,7 +1051,7 @@ export default function BoardScene({
         onClick={handleBoardClick}
       >
         <div
-          className="absolute rounded-[48px] border border-black/10 bg-[radial-gradient(circle_at_top,#fff8ee_0%,#f3eadd_55%,#e9dfd1_100%)]"
+          className="board-plane absolute rounded-[48px] border border-black/10 bg-[radial-gradient(circle_at_top,#fff8ee_0%,#f3eadd_55%,#e9dfd1_100%)]"
           style={{
             width: PLANE_SIZE,
             height: PLANE_SIZE,

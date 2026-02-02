@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeTokenRow } from "@/lib/db-utils";
-import { BASE_INVENTORY } from "@/lib/letters";
 import { createSession } from "@/lib/auth";
 
 type ConnectPayload = {
@@ -125,17 +124,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const inventoryStatements = BASE_INVENTORY.map((entry) => ({
-      sql: "INSERT INTO user_letters (board_id, user_id, letter, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(board_id, user_id, letter) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at",
-      args: [1, userId, entry.letter, entry.quantity, createdAt],
-    }));
-    await database.batch([
-      {
-        sql: "INSERT INTO board_members (board_id, user_id, role, status, total_score, joined_at) VALUES (1, ?, 'member', 'active', 0, ?)",
-        args: [userId, createdAt],
-      },
-      ...inventoryStatements,
-    ]);
 
     const session = await createSession(database, userId);
     const response = NextResponse.json({ success: true });

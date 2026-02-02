@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeUserRow } from "@/lib/db-utils";
 import BoardsPanel from "./BoardsPanel";
+import ThemeToggle from "./ThemeToggle";
 
 export default async function BoardsPage() {
   const cookieStore = await cookies();
@@ -39,7 +40,10 @@ export default async function BoardsPage() {
           >
             Wordle Board
           </a>
-          <h1 className="font-display text-4xl text-[#241c15]">Your boards</h1>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="font-display text-4xl text-[#241c15]">Your boards</h1>
+            <ThemeToggle />
+          </div>
           <p className="max-w-2xl text-sm text-[#5a4d43]">
             Join or create boards, then pick where to play. Wordle rewards apply
             to every board you belong to.

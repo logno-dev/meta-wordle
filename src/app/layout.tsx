@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, Manrope } from "next/font/google";
 import "./globals.css";
+import ThemeClient from "./ThemeClient";
 
 const displayFont = DM_Serif_Display({
   variable: "--font-display",
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body
         className={`${displayFont.variable} ${bodyFont.variable} antialiased`}
       >
+        <ThemeClient />
         {children}
       </body>
     </html>

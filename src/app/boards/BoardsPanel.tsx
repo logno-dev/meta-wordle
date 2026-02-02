@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 type Board = {
   id: number;
@@ -34,6 +35,7 @@ export default function BoardsPanel() {
   const [publicStatus, setPublicStatus] = useState<"idle" | "loading" | "error">(
     "idle",
   );
+  const [expandedBoards, setExpandedBoards] = useState<Record<number, boolean>>({});
   const [message, setMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copyHint, setCopyHint] = useState<
@@ -448,53 +450,12 @@ export default function BoardsPanel() {
     await handleReset(boardId);
   };
 
+  const toggleBoardDetails = (boardId: number) => {
+    setExpandedBoards((prev) => ({ ...prev, [boardId]: !prev[boardId] }));
+  };
+
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 rounded-3xl border border-black/10 bg-white/85 p-6 shadow-2xl shadow-black/10 lg:grid-cols-2">
-        <form className="grid gap-3" onSubmit={handleCreateBoard}>
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
-            Create board
-          </div>
-          <input
-            name="name"
-            required
-            placeholder="Board name"
-            className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
-          />
-          <select
-            name="visibility"
-            className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
-            defaultValue="private"
-          >
-            <option value="private">Private</option>
-            <option value="public">Public</option>
-          </select>
-          <button
-            type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-full bg-[#d76f4b] px-6 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231]"
-          >
-            Create board
-          </button>
-        </form>
-        <form className="grid gap-3" onSubmit={handleJoinBoard}>
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
-            Join with code
-          </div>
-          <input
-            name="code"
-            required
-            placeholder="Invite code"
-            className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
-          />
-          <button
-            type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 bg-white px-6 text-sm font-semibold text-[#b45231] shadow-lg shadow-black/5 transition hover:bg-[#fff1e7]"
-          >
-            Join board
-          </button>
-        </form>
-      </section>
-
       <section className="grid gap-4">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
           Your boards
@@ -516,80 +477,86 @@ export default function BoardsPanel() {
                 <div className="font-display text-2xl text-[#241c15]">
                   {board.name}
                 </div>
-                <div className="mt-1 text-xs uppercase tracking-[0.2em] text-[#6b4b3d]">
-                  {board.visibility} · {board.member_count} members · {board.role}
-                </div>
-                <div className="mt-2 text-sm text-[#5a4d43]">
-                  Your score: {board.total_score}
-                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {board.role === "admin" ? (
-                  <select
-                    value={board.visibility}
-                    onChange={(event) =>
-                      handleVisibility(board.id, event.currentTarget.value)
-                    }
-                    className="h-10 rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
-                  >
-                    <option value="private">Private</option>
-                    <option value="public">Public</option>
-                  </select>
-                ) : null}
+              <div className="flex items-center gap-2">
                 <a
                   href={`/board/${board.id}`}
                   className="inline-flex h-11 items-center justify-center rounded-full bg-[#d76f4b] px-6 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231]"
                 >
                   Enter board
                 </a>
+                <button
+                  type="button"
+                  onClick={() => toggleBoardDetails(board.id)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white/80 text-[#6b4b3d] shadow-lg shadow-black/5"
+                  aria-label="Toggle board details"
+                  aria-expanded={Boolean(expandedBoards[board.id])}
+                >
+                  {expandedBoards[board.id] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
               </div>
             </div>
 
-            {board.role === "admin" ? (
+            {expandedBoards[board.id] ? (
               <div className="mt-4 grid gap-3 rounded-2xl border border-black/5 bg-[#fff7ef] p-4 text-sm text-[#5a4d43]">
-                <div className="flex flex-wrap items-center gap-3">
-                  {invites[board.id]?.code ? (
-                    <>
+                <div className="text-xs uppercase tracking-[0.2em] text-[#6b4b3d]">
+                  {board.visibility} · {board.member_count} members · {board.role} · your score {board.total_score}
+                </div>
+                {board.role === "admin" ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      value={board.visibility}
+                      onChange={(event) =>
+                        handleVisibility(board.id, event.currentTarget.value)
+                      }
+                      className="h-9 rounded-full border border-black/10 bg-white px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+                    >
+                      <option value="private">Private</option>
+                      <option value="public">Public</option>
+                    </select>
+                    {invites[board.id]?.code ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleInvite(board.id)}
+                          className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+                        >
+                          Reset invite
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInvite(board.id)}
+                          className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#b45231]"
+                        >
+                          Remove code
+                        </button>
+                      </>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => handleInvite(board.id)}
-                        className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+                        className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
                       >
-                        Reset invite
+                        Create invite
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveInvite(board.id)}
-                        className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#b45231]"
-                      >
-                        Remove code
-                      </button>
-                    </>
-                  ) : (
+                    )}
                     <button
                       type="button"
-                      onClick={() => handleInvite(board.id)}
-                      className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+                      onClick={() => handleLoadMembers(board.id)}
+                      className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
                     >
-                      Create invite
+                      View members
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleLoadMembers(board.id)}
-                    className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
-                  >
-                    View members
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setResetConfirm(board)}
-                    disabled={Boolean(resetting[board.id])}
-                    className="inline-flex h-9 items-center justify-center rounded-full bg-[#b45231] px-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-sm shadow-black/10 disabled:opacity-60"
-                  >
-                    {resetting[board.id] ? "Resetting..." : "Reset board"}
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => setResetConfirm(board)}
+                      disabled={Boolean(resetting[board.id])}
+                      className="inline-flex h-9 items-center justify-center rounded-full bg-[#b45231] px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white shadow-sm shadow-black/10 disabled:opacity-60"
+                    >
+                      {resetting[board.id] ? "Resetting..." : "Reset board"}
+                    </button>
+                  </div>
+                ) : null}
                 {invites[board.id]?.code ? (
                   <div className="flex flex-wrap items-center gap-3 text-xs text-[#6b4b3d]">
                     <div className="relative">
@@ -636,19 +603,21 @@ export default function BoardsPanel() {
                         {invites[board.id]?.code}
                       </button>
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-[0.2em]">Visible to</span>
-                      <select
-                        value={invites[board.id]?.scope ?? "admin"}
-                        onChange={(event) =>
-                          handleScopeUpdate(board.id, event.currentTarget.value)
-                        }
-                        className="h-7 rounded-full border border-black/10 bg-white px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
-                      >
-                        <option value="admin">Admins only</option>
-                        <option value="member">All members</option>
-                      </select>
-                    </div>
+                    {board.role === "admin" ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-[0.2em]">Visible to</span>
+                        <select
+                          value={invites[board.id]?.scope ?? "admin"}
+                          onChange={(event) =>
+                            handleScopeUpdate(board.id, event.currentTarget.value)
+                          }
+                          className="h-7 rounded-full border border-black/10 bg-white px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
+                        >
+                          <option value="admin">Admins only</option>
+                          <option value="member">All members</option>
+                        </select>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {membersLoading[board.id] ? <div>Loading members...</div> : null}
@@ -695,42 +664,53 @@ export default function BoardsPanel() {
                 ) : null}
               </div>
             ) : null}
-            {board.role !== "admin" && invites[board.id]?.code ? (
-              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-black/5 bg-[#fff7ef] px-4 py-3 text-xs text-[#6b4b3d]">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleCopyInvite(board.id, invites[board.id]?.code ?? "")
-                  }
-                  className="rounded-full border border-black/10 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
-                >
-                  Copy code
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleCopyInviteLink(board.id, invites[board.id]?.code ?? "")
-                  }
-                  className="rounded-full border border-black/10 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
-                >
-                  Copy link
-                </button>
-                <span className="flex items-center gap-2">
-                  <span>Invite code:</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleCopyInvite(board.id, invites[board.id]?.code ?? "")
-                    }
-                    className="font-semibold"
-                  >
-                    {invites[board.id]?.code}
-                  </button>
-                </span>
-              </div>
-            ) : null}
           </div>
         ))}
+      </section>
+
+      <section className="grid gap-4 rounded-3xl border border-black/10 bg-white/85 p-6 shadow-2xl shadow-black/10 lg:grid-cols-2">
+        <form className="grid gap-3" onSubmit={handleCreateBoard}>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+            Create board
+          </div>
+          <input
+            name="name"
+            required
+            placeholder="Board name"
+            className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+          />
+          <select
+            name="visibility"
+            className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+            defaultValue="private"
+          >
+            <option value="private">Private</option>
+            <option value="public">Public</option>
+          </select>
+          <button
+            type="submit"
+            className="inline-flex h-11 items-center justify-center rounded-full bg-[#d76f4b] px-6 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231]"
+          >
+            Create board
+          </button>
+        </form>
+        <form className="grid gap-3" onSubmit={handleJoinBoard}>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
+            Join with code
+          </div>
+          <input
+            name="code"
+            required
+            placeholder="Invite code"
+            className="h-11 rounded-2xl border border-black/10 bg-white px-4 text-sm text-[#241c15] outline-none ring-orange-200/70 transition focus:ring-4"
+          />
+          <button
+            type="submit"
+            className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 bg-white px-6 text-sm font-semibold text-[#b45231] shadow-lg shadow-black/5 transition hover:bg-[#fff1e7]"
+          >
+            Join board
+          </button>
+        </form>
       </section>
 
       <section className="grid gap-4">
