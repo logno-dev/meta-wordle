@@ -72,8 +72,8 @@ export async function POST(request: Request) {
     }
 
     const claimResult = await database.execute({
-      sql: "SELECT gift_id FROM gift_claims WHERE gift_id = ? AND user_id = ?",
-      args: [giftId, user.id],
+      sql: "SELECT gift_id FROM gift_claims WHERE board_id = ? AND gift_id = ? AND user_id = ?",
+      args: [boardId, giftId, user.id],
     });
     if (claimResult.rows.length > 0) {
       return NextResponse.json(
@@ -105,7 +105,10 @@ export async function POST(request: Request) {
       },
     ]);
     await database.batch([
-      { sql: "INSERT INTO gift_claims (gift_id, user_id, claimed_at) VALUES (?, ?, ?)", args: [giftId, user.id, updatedAt] },
+      {
+        sql: "INSERT INTO gift_claims (board_id, gift_id, user_id, claimed_at) VALUES (?, ?, ?, ?)",
+        args: [boardId, giftId, user.id, updatedAt],
+      },
       ...statements,
     ]);
 

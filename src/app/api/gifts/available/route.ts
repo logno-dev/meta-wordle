@@ -45,8 +45,8 @@ export async function GET(request: Request) {
 
     const now = new Date().toISOString();
     const giftsResult = await database.execute({
-      sql: "SELECT id, title, letters_json, available_at, expires_at FROM gifts WHERE board_id = ? AND available_at <= ? AND expires_at > ? AND id NOT IN (SELECT gift_id FROM gift_claims WHERE user_id = ?)",
-      args: [boardId, now, now, user.id],
+      sql: "SELECT id, title, letters_json, available_at, expires_at FROM gifts WHERE board_id = ? AND available_at <= ? AND expires_at > ? AND id NOT IN (SELECT gift_id FROM gift_claims WHERE board_id = ? AND user_id = ?)",
+      args: [boardId, now, now, boardId, user.id],
     });
 
     return NextResponse.json({ gifts: giftsResult.rows });

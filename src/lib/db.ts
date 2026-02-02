@@ -212,10 +212,12 @@ export const ensureSchema = async () => {
     },
     {
       sql: `CREATE TABLE IF NOT EXISTS gift_claims (
+        board_id INTEGER NOT NULL DEFAULT 1,
         gift_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
         claimed_at TEXT NOT NULL,
-        PRIMARY KEY (gift_id, user_id),
+        PRIMARY KEY (board_id, gift_id, user_id),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
         FOREIGN KEY (gift_id) REFERENCES gifts(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
       )`,
@@ -550,6 +552,38 @@ export const ensureSchema = async () => {
   if (!giftsNames.has("board_id")) {
     await database.execute({
       sql: "ALTER TABLE gifts ADD COLUMN board_id INTEGER NOT NULL DEFAULT 1",
+      args: [],
+    });
+  }
+
+  const giftClaimsColumns = await database.execute({
+    sql: "PRAGMA table_info(gift_claims)",
+    args: [],
+  });
+  const giftClaimsNames = new Set(
+    giftClaimsColumns.rows.map((row) => String((row as Record<string, unknown>).name)),
+  );
+  if (!giftClaimsNames.has("board_id")) {
+    await database.execute({
+      sql: `CREATE TABLE gift_claims_v2 (
+        board_id INTEGER NOT NULL DEFAULT 1,
+        gift_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        claimed_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, gift_id, user_id),
+        FOREIGN KEY (board_id) REFERENCES boards(id),
+        FOREIGN KEY (gift_id) REFERENCES gifts(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      args: [],
+    });
+    await database.execute({
+      sql: "INSERT INTO gift_claims_v2 (board_id, gift_id, user_id, claimed_at) SELECT 1, gift_id, user_id, claimed_at FROM gift_claims",
+      args: [],
+    });
+    await database.execute({ sql: "DROP TABLE gift_claims", args: [] });
+    await database.execute({
+      sql: "ALTER TABLE gift_claims_v2 RENAME TO gift_claims",
       args: [],
     });
   }
