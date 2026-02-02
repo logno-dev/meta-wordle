@@ -1403,10 +1403,10 @@ export default function BoardScene({
       ) : null}
 
       <div
-        className="pointer-events-none fixed left-1/2 w-[min(720px,92vw)] -translate-x-1/2"
-        style={{ bottom: "max(16px, env(safe-area-inset-bottom))" }}
+        className="pointer-events-none fixed inset-x-0 sm:left-1/2 sm:w-[min(720px,92vw)] sm:-translate-x-1/2"
+        style={{ bottom: "max(0px, env(safe-area-inset-bottom))" }}
       >
-        <div className="pointer-events-auto mb-3 flex min-h-[20px] flex-wrap items-center justify-between gap-3 text-xs text-[#5a4d43]">
+        <div className="pointer-events-auto mb-1 flex min-h-[20px] flex-wrap items-center justify-between gap-2 px-3 text-xs text-[#5a4d43] sm:mb-3 sm:gap-3 sm:px-0">
           <span>
             {selected && typedWord.length > 0
               ? `Draft: ${typedWord.toUpperCase()}`
@@ -1424,13 +1424,13 @@ export default function BoardScene({
             </span>
           ) : null}
         </div>
-        <div className="pointer-events-auto rounded-3xl border border-black/10 bg-white/90 p-4 shadow-2xl shadow-black/10">
+        <div className="pointer-events-auto border-t border-black/10 bg-white/95 px-3 py-3 sm:rounded-3xl sm:border sm:border-black/10 sm:bg-white/90 sm:p-4 sm:shadow-2xl sm:shadow-black/10">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
             {loggedIn ? "" : "Log in to play"}
           </div>
-          <div className="mt-3 space-y-2">
+          <div className="mt-2 space-y-2 sm:mt-3">
             {KEY_ROWS.map((row) => (
-              <div key={row} className="flex justify-center gap-1">
+              <div key={row} className="flex w-full justify-between gap-1 sm:w-auto sm:justify-center">
                 {row.split("").map((letter) => {
                   const isAnchorLetter = selected?.letter === letter;
                   const availableCount = letterInventory.get(letter) ?? 0;
@@ -1445,7 +1445,7 @@ export default function BoardScene({
                       type="button"
                       disabled={disabled}
                       onClick={() => appendLetter(letter)}
-                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold uppercase transition ${disabled
+                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-[13px] font-semibold uppercase transition sm:h-10 sm:w-10 sm:text-sm ${disabled
                         ? "border border-black/5 bg-black/5 text-[#a38b7a]"
                         : isAnchorLetter
                           ? "border border-[#d76f4b] bg-[#fff1e7] text-[#b45231]"
@@ -1471,7 +1471,7 @@ export default function BoardScene({
                   <button
                     type="button"
                     onClick={() => setTypedWord((value) => value.slice(0, -1))}
-                    className="relative flex h-10 w-12 items-center justify-center rounded-xl border border-black/10 bg-white text-[#241c15] transition hover:border-[#d76f4b]"
+                    className="relative flex h-10 w-12 items-center justify-center rounded-xl border border-black/10 bg-white text-[#241c15] transition hover:border-[#d76f4b] sm:h-10 sm:w-12"
                     aria-label="Backspace"
                   >
                     <svg
@@ -1493,11 +1493,11 @@ export default function BoardScene({
               </div>
             ))}
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 sm:mt-3 sm:gap-3">
             <button
               type="button"
               onClick={() => setShowInventory((value) => !value)}
-              className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-sm shadow-black/5"
+              className="inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b4b3d] shadow-sm shadow-black/5 sm:h-10 sm:px-4 sm:text-xs"
             >
               {showInventory ? "Hide inventory" : "Inventory"}
             </button>
@@ -1511,7 +1511,7 @@ export default function BoardScene({
                   placeStatus === "placing"
                 }
                 onClick={handlePlace}
-                className="inline-flex h-10 items-center justify-center rounded-full bg-[#d76f4b] px-5 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-9 items-center justify-center rounded-full bg-[#d76f4b] px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231] disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:px-5 sm:text-xs"
               >
                 {placeStatus === "placing" ? "Placing..." : "Place word"}
               </button>
