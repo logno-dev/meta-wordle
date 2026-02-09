@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeLetterRow, normalizeUserRow } from "@/lib/db-utils";
 import BoardScene from "../BoardScene";
@@ -102,12 +103,12 @@ export default async function BoardPage({ params, searchParams }: BoardPageProps
           <div className="absolute bottom-0 right-0 h-72 w-72 translate-x-24 rounded-full bg-rose-200/70 blur-3xl" />
         </div>
         <main className="relative mx-auto flex w-full max-w-xl flex-col gap-6">
-          <a
+          <Link
             href="/boards"
             className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
           >
             Back to boards
-          </a>
+          </Link>
           <div className="rounded-3xl border border-black/10 bg-white/85 p-8 shadow-2xl shadow-black/10">
             <h1 className="font-display text-3xl text-[#241c15]">Private board</h1>
             <p className="mt-3 text-sm text-[#5a4d43]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 type Board = {
@@ -460,7 +461,25 @@ export default function BoardsPanel() {
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
           Your boards
         </div>
-        {status === "loading" ? <div>Loading boards...</div> : null}
+        {status === "loading" && boards.length === 0 ? (
+          <div className="grid gap-4">
+            {[0, 1].map((index) => (
+              <div
+                key={`board-skeleton-${index}`}
+                className="animate-pulse rounded-3xl border border-black/10 bg-white/85 p-6 shadow-2xl shadow-black/10"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="h-7 w-40 rounded-full bg-black/10" />
+                  <div className="flex items-center gap-2">
+                    <div className="h-11 w-32 rounded-full bg-[#d76f4b]/30" />
+                    <div className="h-11 w-11 rounded-full bg-black/10" />
+                  </div>
+                </div>
+                <div className="mt-4 h-4 w-56 rounded-full bg-black/5" />
+              </div>
+            ))}
+          </div>
+        ) : null}
         {status === "error" ? <div>Unable to load boards.</div> : null}
         {status === "idle" && boards.length === 0 ? (
           <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[#5a4d43]">
@@ -479,12 +498,12 @@ export default function BoardsPanel() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <a
+                <Link
                   href={`/board/${board.id}`}
                   className="inline-flex h-11 items-center justify-center rounded-full bg-[#d76f4b] px-6 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition hover:bg-[#b45231]"
                 >
                   Enter board
-                </a>
+                </Link>
                 <button
                   type="button"
                   onClick={() => toggleBoardDetails(board.id)}
@@ -717,7 +736,24 @@ export default function BoardsPanel() {
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
           Discover public boards
         </div>
-        {publicStatus === "loading" ? <div>Loading public boards...</div> : null}
+        {publicStatus === "loading" && publicBoards.length === 0 ? (
+          <div className="grid gap-4">
+            {[0, 1].map((index) => (
+              <div
+                key={`public-skeleton-${index}`}
+                className="animate-pulse rounded-3xl border border-black/10 bg-white/85 p-6 shadow-2xl shadow-black/10"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="h-7 w-44 rounded-full bg-black/10" />
+                    <div className="mt-2 h-3 w-32 rounded-full bg-black/5" />
+                  </div>
+                  <div className="h-11 w-32 rounded-full bg-black/10" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {publicStatus === "error" ? <div>Unable to load public boards.</div> : null}
         {publicStatus === "idle" && publicBoards.length === 0 ? (
           <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[#5a4d43]">

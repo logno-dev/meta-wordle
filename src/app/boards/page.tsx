@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { db, ensureSchema } from "@/lib/db";
 import { normalizeUserRow } from "@/lib/db-utils";
 import BoardsPanel from "./BoardsPanel";
@@ -34,12 +35,12 @@ export default async function BoardsPage() {
       </div>
       <main className="relative mx-auto flex w-full max-w-5xl flex-col gap-10">
         <header className="flex flex-col gap-4">
-          <a
+          <Link
             href="/"
             className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]"
           >
             Wordle Board
-          </a>
+          </Link>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="font-display text-4xl text-[#241c15]">Your boards</h1>
             <ThemeToggle />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { SCRABBLE_SCORES } from "@/lib/letters";
 
 type Tile = {
@@ -118,6 +119,12 @@ export default function BoardScene({
   const lastLetterUpdateRef = useRef<string | null>(null);
   const lastInventoryTotalRef = useRef<number | null>(null);
   const skipNextBoardClickRef = useRef(false);
+  const optimisticPlacementRef = useRef<
+    | {
+        tiles: Tile[];
+      }
+    | null
+  >(null);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -733,21 +740,65 @@ export default function BoardScene({
             direction: row.direction === "vertical" ? "vertical" : "horizontal",
             word_id: Number(row.word_id ?? 0),
           }));
+          const nextTileMap = new Map<string, string>();
+          nextTiles.forEach((tile) => {
+            nextTileMap.set(`${tile.x},${tile.y}`, tile.letter);
+          });
+          let hasConflict = false;
+          let conflictMessage: string | null = null;
+          const getDraftPosition = (index: number) => {
+            if (!selected) {
+              return null;
+            }
+            const startX =
+              placementDirection === "horizontal" ? selected.x - anchorIndex : selected.x;
+            const startY =
+              placementDirection === "vertical" ? selected.y - anchorIndex : selected.y;
+            return {
+              x: placementDirection === "horizontal" ? startX + index : startX,
+              y: placementDirection === "vertical" ? startY + index : startY,
+            };
+          };
+          if (selected) {
+            const anchorKey = `${selected.x},${selected.y}`;
+            const anchorLetter = nextTileMap.get(anchorKey);
+            if (!anchorLetter || anchorLetter !== selected.letter) {
+              hasConflict = true;
+              conflictMessage = "Board updated. Draft cleared: anchor changed.";
+            } else if (typedWord.length > 0) {
+              typedWord.split("").some((draftLetter, index) => {
+                const position = getDraftPosition(index);
+                if (!position) {
+                  return false;
+                }
+                const boardLetter = nextTileMap.get(`${position.x},${position.y}`);
+                if (boardLetter && boardLetter !== draftLetter) {
+                  hasConflict = true;
+                  conflictMessage = `Board updated. Draft cleared: conflict at (${position.x}, ${position.y}).`;
+                  return true;
+                }
+                return false;
+              });
+            }
+          }
           setBoardTiles(nextTiles);
           tileInfoCache.current.clear();
           if (boardData.latest_word_id) {
             setHighlightWordId(boardData.latest_word_id);
             window.setTimeout(() => setHighlightWordId(null), 3000);
           }
-        }
-
-        if (typedWord.length > 0) {
-          setTypedWord("");
-          setSelected(null);
-          setWordStatus("idle");
-          setPlaceStatus("idle");
-          setBoardNotice("Board updated. Draft cleared.");
-          window.setTimeout(() => setBoardNotice(null), 3000);
+          if (hasConflict) {
+            setTypedWord("");
+            setAnchorOccurrence(0);
+            setWordStatus("idle");
+            setPlaceStatus("idle");
+            setPlaceMessage(null);
+            setSelected(null);
+            setBoardNotice(
+              conflictMessage ?? "Board updated. Draft cleared due to conflict.",
+            );
+            window.setTimeout(() => setBoardNotice(null), 3000);
+          }
         }
       } catch (error) {
         return;
@@ -761,7 +812,7 @@ export default function BoardScene({
         clearInterval(timer);
       }
     };
-  }, [boardId, lastBoardUpdate, typedWord.length]);
+  }, [anchorIndex, boardId, lastBoardUpdate, placementDirection, selected, typedWord]);
 
   const fetchTileInfo = async (tile: Tile, force?: boolean) => {
     const key = `${tile.x},${tile.y}`;
@@ -937,8 +988,49 @@ export default function BoardScene({
       return;
     }
 
+    const applyOptimisticPlacement = () => {
+      const startX =
+        placementDirection === "horizontal" ? selected.x - activeAnchorIndex : selected.x;
+      const startY =
+        placementDirection === "vertical" ? selected.y - activeAnchorIndex : selected.y;
+      const nextTiles: Tile[] = [];
+      let hasImmediateConflict = false;
+      typedWord.split("").forEach((letter, index) => {
+        const x = placementDirection === "horizontal" ? startX + index : startX;
+        const y = placementDirection === "vertical" ? startY + index : startY;
+        const boardLetter = boardTileMap.get(`${x},${y}`);
+        if (boardLetter) {
+          if (boardLetter !== letter) {
+            hasImmediateConflict = true;
+          }
+          return;
+        }
+        nextTiles.push({
+          x,
+          y,
+          letter,
+          direction: placementDirection,
+          word_id: -1,
+        });
+      });
+      if (hasImmediateConflict || nextTiles.length === 0) {
+        return;
+      }
+      optimisticPlacementRef.current = { tiles: nextTiles };
+      setBoardTiles((prev) => [...prev, ...nextTiles]);
+    };
+
+    const rollbackOptimisticPlacement = () => {
+      if (!optimisticPlacementRef.current) {
+        return;
+      }
+      optimisticPlacementRef.current = null;
+      setBoardTiles((prev) => prev.filter((tile) => tile.word_id !== -1));
+    };
+
     setPlaceStatus("placing");
     setPlaceMessage(null);
+    applyOptimisticPlacement();
     try {
       const response = await fetch("/api/board/place", {
         method: "POST",
@@ -956,8 +1048,10 @@ export default function BoardScene({
       if (!response.ok) {
         setPlaceStatus("error");
         setPlaceMessage(data?.error || "Unable to place word.");
+        rollbackOptimisticPlacement();
         return;
       }
+      optimisticPlacementRef.current = null;
       setPlaceStatus("success");
       setPlaceMessage("Word placed.");
       const scoreDelta = typeof data.score === "number" ? data.score : 0;
@@ -1008,6 +1102,7 @@ export default function BoardScene({
       setPlaceMessage(
         error instanceof Error ? error.message : "Unable to place word.",
       );
+      rollbackOptimisticPlacement();
     }
   };
 
@@ -1192,7 +1287,7 @@ export default function BoardScene({
       ) : null}
 
       <div className="pointer-events-none absolute left-4 top-20 flex flex-col items-start gap-3 sm:left-6 sm:top-6">
-        <a
+        <Link
           href="/boards"
           className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 bg-white/80 text-[#6b4b3d] shadow-lg shadow-black/5"
           aria-label="Home"
@@ -1213,7 +1308,7 @@ export default function BoardScene({
             <path d="M5 10.5V21h14V10.5" />
             <path d="M9 21v-6h6v6" />
           </svg>
-        </a>
+        </Link>
         {loggedIn ? (
           <button
             type="button"
