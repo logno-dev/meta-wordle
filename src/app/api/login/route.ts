@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const database = db();
 
     const userResult = await database.execute({
-      sql: "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
+      sql: "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ? COLLATE NOCASE",
       args: [username],
     });
 

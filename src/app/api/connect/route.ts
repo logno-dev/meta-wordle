@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     const existingUser = await database.execute({
-      sql: "SELECT id FROM users WHERE username = ?",
+      sql: "SELECT id FROM users WHERE username = ? COLLATE NOCASE",
       args: [username],
     });
 

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db, ensureSchema } from "@/lib/db";
 
 type ResetRequestPayload = {
-  telegram_user_id?: string;
+  telegram_user_id?: string | number;
 };
 
 const RESET_TTL_MINUTES = 30;
@@ -19,7 +19,12 @@ export async function POST(request: Request) {
     }
 
     const payload = (await request.json()) as ResetRequestPayload;
-    const telegramUserId = payload.telegram_user_id?.trim();
+    const telegramUserId =
+      typeof payload.telegram_user_id === "string"
+        ? payload.telegram_user_id.trim()
+        : typeof payload.telegram_user_id === "number"
+          ? String(payload.telegram_user_id)
+          : "";
     if (!telegramUserId) {
       return NextResponse.json(
         { error: "telegram_user_id is required." },

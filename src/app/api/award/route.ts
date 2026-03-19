@@ -4,7 +4,7 @@ import { normalizeUserRow } from "@/lib/db-utils";
 import { pickAwardLetter } from "@/lib/letters";
 
 type AwardPayload = {
-  telegram_user_id?: string;
+  telegram_user_id?: string | number;
   wordle_day?: string;
   answer?: string;
   score?: number | string;
@@ -43,7 +43,12 @@ export async function POST(request: Request) {
     if (process.env.NODE_ENV !== "production") {
       console.log("/api/award payload", payload);
     }
-    const telegramUserId = payload.telegram_user_id?.trim();
+    const telegramUserId =
+      typeof payload.telegram_user_id === "string"
+        ? payload.telegram_user_id.trim()
+        : typeof payload.telegram_user_id === "number"
+          ? String(payload.telegram_user_id)
+          : "";
     const wordleDay = payload.wordle_day?.trim();
     const answer = payload.answer?.trim();
     const score = normalizeScore(payload.score);
