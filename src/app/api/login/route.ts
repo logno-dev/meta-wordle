@@ -9,6 +9,8 @@ type LoginPayload = {
   password?: string;
 };
 
+const isTelegramIdLike = (value: string) => /^\d{5,20}$/.test(value);
+
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as LoginPayload;
@@ -25,14 +27,35 @@ export async function POST(request: Request) {
     await ensureSchema();
     const database = db();
 
-    const userResult = await database.execute({
-      sql: "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ? COLLATE NOCASE",
+    const exactUsernameResult = await database.execute({
+      sql: "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ?",
       args: [username],
     });
 
-    const user = normalizeUserRow(
-      userResult.rows[0] as Record<string, unknown> | undefined,
+    let user = normalizeUserRow(
+      exactUsernameResult.rows[0] as Record<string, unknown> | undefined,
     );
+
+    if (!user && isTelegramIdLike(username)) {
+      const telegramResult = await database.execute({
+        sql: "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE telegram_user_id = ?",
+        args: [username],
+      });
+      user = normalizeUserRow(
+        telegramResult.rows[0] as Record<string, unknown> | undefined,
+      );
+    }
+
+    if (!user) {
+      const userResult = await database.execute({
+        sql: "SELECT id, username, password_hash, telegram_user_id, created_at FROM users WHERE username = ? COLLATE NOCASE",
+        args: [username],
+      });
+
+      user = normalizeUserRow(
+        userResult.rows[0] as Record<string, unknown> | undefined,
+      );
+    }
 
     if (!user) {
       return NextResponse.json(

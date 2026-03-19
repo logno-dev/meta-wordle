@@ -32,7 +32,7 @@ export default function LoginForm() {
       let data: { error?: string } | null = null;
       try {
         data = (await response.json()) as { error?: string };
-      } catch (parseError) {
+      } catch {
         data = null;
       }
 
@@ -60,6 +60,7 @@ export default function LoginForm() {
       <h1 className="font-display text-3xl text-[#241c15]">Log in</h1>
       <p className="mt-3 text-sm text-[#5a4d43]">
         Use the username and password you created from the Telegram link.
+        Telegram user ID also works.
       </p>
 
       <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>

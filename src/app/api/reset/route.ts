@@ -56,16 +56,17 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const usedAt = new Date().toISOString();
-    await database.batch([
-      {
-        sql: "UPDATE users SET password_hash = ? WHERE id = ?",
-        args: [passwordHash, userId],
-      },
-      {
-        sql: "UPDATE password_reset_tokens SET used_at = ? WHERE token = ?",
-        args: [usedAt, token],
-      },
-    ]);
+    const updateUser = await database.execute({
+      sql: "UPDATE users SET password_hash = ? WHERE id = ?",
+      args: [passwordHash, userId],
+    });
+    if ((updateUser.rowsAffected ?? 0) < 1) {
+      return NextResponse.json({ error: "Invalid token." }, { status: 404 });
+    }
+    await database.execute({
+      sql: "UPDATE password_reset_tokens SET used_at = ? WHERE token = ?",
+      args: [usedAt, token],
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
