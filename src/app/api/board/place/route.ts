@@ -20,6 +20,40 @@ type Tile = {
   letter: string;
 };
 
+const getTileKey = (x: number, y: number) => `${x},${y}`;
+
+const buildWordAt = (
+  tileMap: Map<string, Tile>,
+  x: number,
+  y: number,
+  direction: "horizontal" | "vertical",
+) => {
+  const dx = direction === "horizontal" ? 1 : 0;
+  const dy = direction === "vertical" ? 1 : 0;
+
+  let startX = x;
+  let startY = y;
+  while (tileMap.has(getTileKey(startX - dx, startY - dy))) {
+    startX -= dx;
+    startY -= dy;
+  }
+
+  let word = "";
+  let cursorX = startX;
+  let cursorY = startY;
+  while (true) {
+    const tile = tileMap.get(getTileKey(cursorX, cursorY));
+    if (!tile) {
+      break;
+    }
+    word += tile.letter;
+    cursorX += dx;
+    cursorY += dy;
+  }
+
+  return word;
+};
+
 const parseCoordinate = (value: number | string | undefined) => {
   if (typeof value === "number") {
     return Number.isFinite(value) ? Math.trunc(value) : null;
@@ -91,10 +125,6 @@ export async function POST(request: Request) {
     const startY = direction === "vertical" ? anchorY - anchorIndex : anchorY;
 
     const positions = createPositions(word, startX, startY, direction);
-    const minX = Math.min(...positions.map((pos) => pos.x));
-    const maxX = Math.max(...positions.map((pos) => pos.x));
-    const minY = Math.min(...positions.map((pos) => pos.y));
-    const maxY = Math.max(...positions.map((pos) => pos.y));
 
     await ensureSchema();
     const database = db();
@@ -128,24 +158,18 @@ export async function POST(request: Request) {
       (existingCountResult.rows[0] as Record<string, unknown> | undefined)?.count ?? 0,
     );
 
-    const neighborResult = await database.execute({
-      sql: "SELECT board_tiles.x, board_tiles.y, board_tiles.letter, board_words.direction FROM board_tiles JOIN board_words ON board_tiles.word_id = board_words.id WHERE board_tiles.board_id = ? AND board_tiles.x BETWEEN ? AND ? AND board_tiles.y BETWEEN ? AND ?",
-      args: [boardId, minX - 1, maxX + 1, minY - 1, maxY + 1],
+    const boardTilesResult = await database.execute({
+      sql: "SELECT x, y, letter FROM board_tiles WHERE board_id = ?",
+      args: [boardId],
     });
-    const neighborTiles = neighborResult.rows.map((row) => ({
+    const boardTiles = boardTilesResult.rows.map((row) => ({
       x: Number((row as Record<string, unknown>).x),
       y: Number((row as Record<string, unknown>).y),
       letter: String((row as Record<string, unknown>).letter ?? ""),
-      direction:
-        (row as Record<string, unknown>).direction === "vertical"
-          ? "vertical"
-          : "horizontal",
     }));
-    const tileMap = new Map(
-      neighborTiles.map((tile) => [`${tile.x},${tile.y}`, tile]),
-    );
+    const tileMap = new Map(boardTiles.map((tile) => [getTileKey(tile.x, tile.y), tile]));
 
-    const anchorTile = tileMap.get(`${anchorX},${anchorY}`);
+    const anchorTile = tileMap.get(getTileKey(anchorX, anchorY));
     if (!anchorTile) {
       return NextResponse.json(
         { error: "Anchor tile not found." },
@@ -165,7 +189,7 @@ export async function POST(request: Request) {
     const letterCounts = new Map<string, number>();
 
     for (const pos of positions) {
-      const key = `${pos.x},${pos.y}`;
+      const key = getTileKey(pos.x, pos.y);
       const existing = tileMap.get(key);
 
       if (existing) {
@@ -183,10 +207,10 @@ export async function POST(request: Request) {
       letterCounts.set(pos.letter, (letterCounts.get(pos.letter) ?? 0) + 1);
 
       const neighbors = [
-        `${pos.x + 1},${pos.y}`,
-        `${pos.x - 1},${pos.y}`,
-        `${pos.x},${pos.y + 1}`,
-        `${pos.x},${pos.y - 1}`,
+        getTileKey(pos.x + 1, pos.y),
+        getTileKey(pos.x - 1, pos.y),
+        getTileKey(pos.x, pos.y + 1),
+        getTileKey(pos.x, pos.y - 1),
       ];
       if (neighbors.some((neighbor) => tileMap.has(neighbor))) {
         hasAdjacent = true;
@@ -205,6 +229,30 @@ export async function POST(request: Request) {
         { error: "Word must connect to existing tiles." },
         { status: 400 },
       );
+    }
+
+    const placedTileMap = new Map(tileMap);
+    for (const tile of newTiles) {
+      placedTileMap.set(getTileKey(tile.x, tile.y), tile);
+    }
+
+    const crossDirection = direction === "horizontal" ? "vertical" : "horizontal";
+    const crossWords = new Set<string>();
+    for (const tile of newTiles) {
+      const crossWord = buildWordAt(placedTileMap, tile.x, tile.y, crossDirection);
+      if (crossWord.length > 1) {
+        crossWords.add(crossWord);
+      }
+    }
+
+    for (const crossWord of crossWords) {
+      const crossWordValid = await isValidWord(crossWord);
+      if (!crossWordValid) {
+        return NextResponse.json(
+          { error: `Invalid cross word: ${crossWord.toUpperCase()}.` },
+          { status: 400 },
+        );
+      }
     }
 
     const lettersNeeded = Array.from(letterCounts.keys());

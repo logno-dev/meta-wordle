@@ -34,6 +34,40 @@ const MAX_SCALE = 1.5;
 
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 
+const getTileKey = (x: number, y: number) => `${x},${y}`;
+
+const buildWordFromTile = (
+  tileMap: Map<string, string>,
+  x: number,
+  y: number,
+  direction: "horizontal" | "vertical",
+) => {
+  const dx = direction === "horizontal" ? 1 : 0;
+  const dy = direction === "vertical" ? 1 : 0;
+
+  let startX = x;
+  let startY = y;
+  while (tileMap.has(getTileKey(startX - dx, startY - dy))) {
+    startX -= dx;
+    startY -= dy;
+  }
+
+  let word = "";
+  let cursorX = startX;
+  let cursorY = startY;
+  while (true) {
+    const letter = tileMap.get(getTileKey(cursorX, cursorY));
+    if (!letter) {
+      break;
+    }
+    word += letter;
+    cursorX += dx;
+    cursorY += dy;
+  }
+
+  return word;
+};
+
 export default function BoardScene({
   tiles,
   letters,
@@ -59,6 +93,10 @@ export default function BoardScene({
   const [wordStatus, setWordStatus] = useState<
     "idle" | "checking" | "valid" | "invalid"
   >("idle");
+  const [crossRuleStatus, setCrossRuleStatus] = useState<
+    "idle" | "checking" | "valid" | "invalid"
+  >("idle");
+  const [crossRuleMessage, setCrossRuleMessage] = useState<string | null>(null);
   const [placeStatus, setPlaceStatus] = useState<
     "idle" | "placing" | "success" | "error"
   >("idle");
@@ -125,6 +163,7 @@ export default function BoardScene({
       }
     | null
   >(null);
+  const crossWordValidationCache = useRef(new Map<string, boolean>());
 
   useEffect(() => {
     const html = document.documentElement;
@@ -360,7 +399,11 @@ export default function BoardScene({
         return;
       }
       if (event.key === "Enter") {
-        if (wordStatus === "valid" && typedWord.length > 0) {
+        if (
+          wordStatus === "valid" &&
+          crossRuleStatus === "valid" &&
+          typedWord.length > 0
+        ) {
           handlePlace();
         }
         return;
@@ -380,7 +423,15 @@ export default function BoardScene({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [anchorIndexes.length, boardTileMap, letterInventory, selected, typedWord, wordStatus]);
+  }, [
+    anchorIndexes.length,
+    boardTileMap,
+    crossRuleStatus,
+    letterInventory,
+    selected,
+    typedWord,
+    wordStatus,
+  ]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     dragMovedRef.current = false;
@@ -940,6 +991,107 @@ export default function BoardScene({
     }));
   }, [anchorIndex, placementDirection, selected, typedWord]);
 
+  const crossRuleDraft = useMemo(() => {
+    if (!selected || typedWord.length === 0) {
+      return { blockingReason: null as string | null, crossWords: [] as string[] };
+    }
+
+    const activeAnchorIndex =
+      anchorIndexes.length > 0
+        ? anchorIndexes[Math.min(anchorOccurrence, anchorIndexes.length - 1)]
+        : null;
+    if (activeAnchorIndex === null) {
+      return {
+        blockingReason: "Word must include the anchor letter.",
+        crossWords: [] as string[],
+      };
+    }
+
+    const startX =
+      placementDirection === "horizontal" ? selected.x - activeAnchorIndex : selected.x;
+    const startY =
+      placementDirection === "vertical" ? selected.y - activeAnchorIndex : selected.y;
+
+    let hasOverlap = false;
+    let hasAdjacent = false;
+    const newTiles: Array<{ x: number; y: number; letter: string }> = [];
+
+    const letters = typedWord.split("");
+    for (let index = 0; index < letters.length; index += 1) {
+      const letter = letters[index];
+      const x = placementDirection === "horizontal" ? startX + index : startX;
+      const y = placementDirection === "vertical" ? startY + index : startY;
+      const boardLetter = boardTileMap.get(getTileKey(x, y));
+      if (boardLetter) {
+        if (boardLetter !== letter) {
+          return {
+            blockingReason: "Draft conflicts with existing tiles.",
+            crossWords: [] as string[],
+          };
+        }
+        hasOverlap = true;
+        continue;
+      }
+
+      newTiles.push({ x, y, letter });
+      const neighbors = [
+        getTileKey(x + 1, y),
+        getTileKey(x - 1, y),
+        getTileKey(x, y + 1),
+        getTileKey(x, y - 1),
+      ];
+      if (neighbors.some((neighbor) => boardTileMap.has(neighbor))) {
+        hasAdjacent = true;
+      }
+    }
+
+    if (newTiles.length === 0) {
+      return {
+        blockingReason: "Word must place at least one new tile.",
+        crossWords: [] as string[],
+      };
+    }
+
+    if (boardTileMap.size > 0 && !hasOverlap && !hasAdjacent) {
+      return {
+        blockingReason: "Word must connect to existing tiles.",
+        crossWords: [] as string[],
+      };
+    }
+
+    const placedTileMap = new Map(boardTileMap);
+    newTiles.forEach((tile) => {
+      placedTileMap.set(getTileKey(tile.x, tile.y), tile.letter);
+    });
+
+    const crossDirection =
+      placementDirection === "horizontal" ? "vertical" : "horizontal";
+    const crossWords = new Set<string>();
+    newTiles.forEach((tile) => {
+      const crossWord = buildWordFromTile(
+        placedTileMap,
+        tile.x,
+        tile.y,
+        crossDirection,
+      );
+      if (crossWord.length > 1) {
+        crossWords.add(crossWord);
+      }
+    });
+
+    return {
+      blockingReason: null as string | null,
+      crossWords: Array.from(crossWords),
+    };
+  }, [
+    anchorIndexes,
+    anchorOccurrence,
+    boardTileMap,
+    placementDirection,
+    selected,
+    typedWord,
+  ]);
+
   useEffect(() => {
     if (!selected || typedWord.length < 2) {
       setWordStatus("idle");
@@ -966,6 +1118,112 @@ export default function BoardScene({
     return () => window.clearTimeout(handle);
   }, [selected, typedWord]);
 
+  useEffect(() => {
+    if (!selected || typedWord.length === 0 || wordStatus !== "valid") {
+      setCrossRuleStatus("idle");
+      setCrossRuleMessage(null);
+      return;
+    }
+
+    if (crossRuleDraft.blockingReason) {
+      setCrossRuleStatus("invalid");
+      setCrossRuleMessage(crossRuleDraft.blockingReason);
+      return;
+    }
+
+    const invalidCachedWord = crossRuleDraft.crossWords.find(
+      (word) => crossWordValidationCache.current.get(word) === false,
+    );
+    if (invalidCachedWord) {
+      setCrossRuleStatus("invalid");
+      setCrossRuleMessage(`Invalid cross word: ${invalidCachedWord.toUpperCase()}.`);
+      return;
+    }
+
+    const wordsToCheck = crossRuleDraft.crossWords.filter(
+      (word) => !crossWordValidationCache.current.has(word),
+    );
+    if (wordsToCheck.length === 0) {
+      setCrossRuleStatus("valid");
+      setCrossRuleMessage(null);
+      return;
+    }
+
+    setCrossRuleStatus("checking");
+    setCrossRuleMessage(null);
+    let cancelled = false;
+
+    Promise.all(
+      wordsToCheck.map(async (word) => {
+        try {
+          const response = await fetch(
+            `/api/words/validate?word=${encodeURIComponent(word)}`,
+          );
+          if (!response.ok) {
+            return { word, valid: false };
+          }
+          const data = (await response.json()) as { valid?: boolean };
+          return { word, valid: data.valid === true };
+        } catch {
+          return { word, valid: false };
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) {
+        return;
+      }
+
+      results.forEach((result) => {
+        crossWordValidationCache.current.set(result.word, result.valid);
+      });
+
+      const invalidResult = results.find((result) => !result.valid);
+      if (invalidResult) {
+        setCrossRuleStatus("invalid");
+        setCrossRuleMessage(`Invalid cross word: ${invalidResult.word.toUpperCase()}.`);
+        return;
+      }
+
+      const invalidWord = crossRuleDraft.crossWords.find(
+        (word) => crossWordValidationCache.current.get(word) === false,
+      );
+      if (invalidWord) {
+        setCrossRuleStatus("invalid");
+        setCrossRuleMessage(`Invalid cross word: ${invalidWord.toUpperCase()}.`);
+        return;
+      }
+
+      setCrossRuleStatus("valid");
+      setCrossRuleMessage(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [crossRuleDraft, selected, typedWord, wordStatus]);
+
+  const draftStatusLabel = useMemo(() => {
+    if (wordStatus === "checking") {
+      return "Checking word...";
+    }
+    if (wordStatus === "invalid") {
+      return "Not a word";
+    }
+    if (wordStatus !== "valid") {
+      return "";
+    }
+    if (crossRuleStatus === "checking") {
+      return "Checking crosses...";
+    }
+    if (crossRuleStatus === "invalid") {
+      return "Cross rule blocked";
+    }
+    if (crossRuleStatus === "valid") {
+      return "Valid";
+    }
+    return "";
+  }, [crossRuleStatus, wordStatus]);
+
   const handlePlace = async () => {
     if (!selected || !typedWord || !loggedIn) {
       return;
@@ -985,6 +1243,14 @@ export default function BoardScene({
       return;
     }
     if (wordStatus === "invalid" || wordStatus === "checking") {
+      return;
+    }
+    if (crossRuleStatus === "checking") {
+      return;
+    }
+    if (crossRuleStatus === "invalid") {
+      setPlaceStatus("error");
+      setPlaceMessage(crossRuleMessage || "Word breaks cross-word rules.");
       return;
     }
 
@@ -1509,16 +1775,15 @@ export default function BoardScene({
           </span>
           {selected ? (
             <span className="uppercase tracking-[0.2em] text-[#6b4b3d]">
-              {wordStatus === "checking"
-                ? "Checking..."
-                : wordStatus === "valid"
-                  ? "Valid"
-                  : wordStatus === "invalid"
-                    ? "Not a word"
-                    : ""}
+              {draftStatusLabel}
             </span>
           ) : null}
         </div>
+        {selected && wordStatus === "valid" && crossRuleStatus === "invalid" && crossRuleMessage ? (
+          <div className="pointer-events-auto -mt-1 mb-2 px-3 text-xs text-[#b45231] sm:px-0">
+            {crossRuleMessage}
+          </div>
+        ) : null}
         <div className="pointer-events-auto border-t border-black/10 bg-white/95 px-3 py-3 sm:rounded-3xl sm:border sm:border-black/10 sm:bg-white/90 sm:p-4 sm:shadow-2xl sm:shadow-black/10">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4b3d]">
             {loggedIn ? "" : "Log in to play"}
@@ -1603,6 +1868,7 @@ export default function BoardScene({
                   !loggedIn ||
                   !typedWord ||
                   wordStatus !== "valid" ||
+                  crossRuleStatus !== "valid" ||
                   placeStatus === "placing"
                 }
                 onClick={handlePlace}
